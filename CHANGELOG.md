@@ -1,0 +1,29 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2025-11-20
+
+### Added
+- Initial release of Mitsuki
+- Core dependency injection container with automatic component scanning
+- RESTful web framework with declarative controllers (@RestController, @GetMapping, @PostMapping, @PutMapping, @DeleteMapping)
+- Service layer with @Service decorator
+- Data layer with @CrudRepository and @Entity decorators
+- Query DSL for automatic query generation (find_by_X, count_by_X)
+- Custom queries with @Query decorator (JPQL syntax)
+- @Modifying decorator for UPDATE/DELETE operations
+- SQLAlchemy adapter with support for SQLite, PostgreSQL
+- Request/response validation with @Produces and @Consumes decorators
+- File upload support with validation (type, size limits)
+- Automatic OpenAPI 3.0 specification generation
+- Built-in Swagger UI, ReDoc, and Scalar documentation interfaces
+- Scheduled tasks with @Scheduled decorator (cron expressions)
+- Configuration management via YAML or class attributes
+- CLI tool for bootstrapping new applications (mitsuki init)
+- Support for multiple ASGI servers (Granian, Uvicorn, Socketify)
+- Production-ready logging and metrics
+
+[0.1.0]: https://github.com/DavidLandup0/mitsuki/releases/tag/v0.1.0
