@@ -1,0 +1,8 @@
+server:
+  type: socketify
+  port: 8000
+  workers: 1
+  access_log: false
+
+logging:
+    level: INFO

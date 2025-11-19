@@ -1,0 +1,16 @@
+server:
+  port: 8005
+
+logging:
+    level: INFO
+    log_config_sources: True
+
+openapi:
+  enabled: true
+  ui:
+    - swagger
+    - redoc
+    - scalar
+  title: "Multi-UI Test API"
+  version: "1.0.0"
+  description: "Example demonstrating multiple OpenAPI UI support"

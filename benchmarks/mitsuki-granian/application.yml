@@ -1,0 +1,6 @@
+server:
+    type: granian
+    access_log: False
+    ignore_trailing_slash: True
+logging:
+    level: INFO

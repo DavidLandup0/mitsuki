@@ -1,0 +1,11 @@
+{
+  "name": "elysia-benchmark",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "elysia": "latest"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

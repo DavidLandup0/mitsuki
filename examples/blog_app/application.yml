@@ -1,0 +1,20 @@
+server:
+  port: 8000
+  type: granian  # Options: uvicorn (default), granian
+  workers: 1     # Number of worker processes (Granian only)
+  access_log: true  # Enable access logging
+  # Ignore trailing slashes
+  ignore_trailing_slash: true
+
+database:
+  url: sqlite+aiosqlite:///blog.db
+  adapter: sqlalchemy
+  echo: true
+  pool:
+    enabled: true
+    size: 10
+    max_overflow: 20
+
+logging:
+  level: INFO
+  sqlalchemy: false

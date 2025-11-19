@@ -1,0 +1,11 @@
+server:
+    type: granian
+logging:
+    level: INFO
+    log_config_sources: True
+
+scheduler:
+    enabled: True
+    metrics:
+        enabled: true
+        path: /metrics  # Optional, defaults to /metrics

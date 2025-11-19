@@ -1,0 +1,61 @@
+# Mitsuki Default Configuration
+# These values are used when not specified in application.yml
+
+server:
+  host: 127.0.0.1
+  port: 8000
+  type: granian
+  workers: 1
+  access_log: true
+  ignore_trailing_slash: true
+  max_body_size: 10485760  # 10MB in bytes
+  multipart:
+    max_file_size: 10485760  # 10MB in bytes
+    max_request_size: 52428800  # 50MB in bytes
+  cors:
+    enabled: false
+    allowed_origins:
+      - "*"
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  sqlalchemy: false
+  log_config_sources: false
+
+scheduler:
+  enabled: false
+  metrics:
+    enabled: false
+    path: /metrics
+
+openapi:
+  enabled: true
+  ui:
+    - swagger  # Options: swagger, redoc, scalar
+  docs_ui: scalar  # UI to serve at /docs (default: scalar)
+  title: "Mitsuki API"
+  version: "1.0.0"
+  description: ""
+  docs_url: /docs
+  openapi_url: /openapi.json
+  contact:
+    name: ""
+    email: ""
+    url: ""
+  license:
+    name: ""
+    url: ""
+  server:
+    url: ""
+    description: ""
+
+database:
+  adapter: sqlalchemy
+  echo: false
+  pool:
+    enabled: true
+    size: 10
+    max_overflow: 20
+    timeout: 30
+    recycle: 3600

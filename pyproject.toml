@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mitsuki"
+version = "0.1.0"
+description = "Python web development framework. Mixing Python's productivity and flexibility with battle-hardened enterprise patterns."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    {name = "David Landup"}
+]
+keywords = ["web", "framework", "python", "asgi", "dependency-injection"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: ASGI :: Application",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+dependencies = [
+    "uvicorn>=0.24.0",
+    "starlette>=0.32.0",
+    "sqlalchemy>=2.0.0",
+    "aiosqlite>=0.19.0",
+    "pyyaml>=6.0",
+    "click>=8.0.0",
+    "granian>=1.0.0",
+    "socketify>=0.0.27",
+    "python-multipart>=0.0.20",
+    "colorama>=0.4.6",
+    "croniter>=2.0.0",
+    "pytz>=2021.1",
+    "tomli>=2.0.0"
+]
+
+[project.optional-dependencies]
+postgresql = ["asyncpg>=0.29.0"]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/DavidLandup0/mitsuki"
+Documentation = "https://github.com/DavidLandup0/mitsuki/blob/main/README.md"
+Repository = "https://github.com/DavidLandup0/mitsuki"
+Issues = "https://github.com/DavidLandup0/mitsuki/issues"
+
+[project.scripts]
+mitsuki = "mitsuki.cli.bootstrap:main"
+
+[tool.setuptools]
+packages = ["mitsuki", "mitsuki.core", "mitsuki.web", "mitsuki.data", "mitsuki.data.adapters", "mitsuki.config", "mitsuki.cli", "mitsuki.openapi"]
+
+[tool.setuptools.package-data]
+"mitsuki.cli" = ["templates/*.tpl"]
+"mitsuki.config" = ["defaults.yml"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.3",
+]

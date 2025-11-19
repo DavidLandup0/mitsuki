@@ -1,0 +1,6 @@
+server:
+    type: uvicorn
+    access_log: False
+    ignore_trailing_slash: False
+logging:
+    level: CRITICAL

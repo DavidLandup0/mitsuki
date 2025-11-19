@@ -1,0 +1,78 @@
+version: '3.8'
+services:
+  mitsuki-socketify:
+    build:
+      context: ..
+      dockerfile: benchmarks/mitsuki-socketify/Dockerfile
+    ports:
+      - "8000:8000"
+
+  mitsuki-granian:
+    build:
+      context: ..
+      dockerfile: benchmarks/mitsuki-granian/Dockerfile
+    ports:
+      - "8000:8000"
+
+  mitsuki-uvicorn:
+    build:
+      context: ..
+      dockerfile: benchmarks/mitsuki-uvicorn/Dockerfile
+    ports:
+      - "8000:8000"
+
+  fastapi:
+    build:
+      context: ./fastapi
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+
+  starlette-uvicorn:
+    build:
+      context: ./starlette-uvicorn
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+
+  starlette-granian:
+    build:
+      context: ./starlette-granian
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+
+  flask:
+    build:
+      context: ./flask
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+
+  django:
+    build:
+      context: ./django
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+
+  elysia:
+    build:
+      context: ./elysia
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+
+  spring:
+    build:
+      context: ./spring_boot
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+
+  express:
+    build:
+      context: ./express
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"

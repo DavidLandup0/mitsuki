@@ -1,0 +1,40 @@
+# Python
+.pyc
+__pycache__
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info
+dist/
+build/
+.pytest_cache/
+.coverage
+.db
+*.db
+
+# Node/Bun
+node_modules/
+bun.lockb
+.bun/
+
+# Java/Maven
+target/
+*.class
+*.jar
+*.war
+.mvn/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Benchmark results
+benchmarks/results/
