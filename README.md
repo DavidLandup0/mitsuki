@@ -81,6 +81,64 @@ All can run in parallel, and a preferred UI gets exposed at /docs:
 
 No configuration needed.
 
+## CLI Tool
+
+Bootstrap new projects with the `mitsuki` CLI.
+
+```bash
+mitsuki init
+```
+
+This will guide you through creating a new project with a clean structure and will auto-generate controllers, services, repositories, and configuration for different environments:
+
+```
+my_app/
+  src/
+    my_app/
+      domain/           # @Entity classes
+      repository/       # @CrudRepository classes
+      service/          # @Service classes
+      controller/       # @RestController classes
+      __init__.py
+    app.py             # Application entry point
+  application.yml      # Base configuration
+  application-dev.yml  # Development configuration
+  application-stg.yml  # Staging configuration
+  application-prod.yml # Production configuration
+  .gitignore
+  README.md
+```
+
+Start it:
+
+```
+python src/app.py 
+```
+
+```
+2025-11-20 02:04:45,960 - mitsuki - INFO     - 
+2025-11-20 02:04:45,960 - mitsuki - INFO     -     ♡ ｡ ₊°༺❤︎༻°₊ ｡ ♡
+2025-11-20 02:04:45,960 - mitsuki - INFO     -               _ __             __   _
+2025-11-20 02:04:45,960 - mitsuki - INFO     -    ____ ___  (_) /________  __/ /__(_)
+2025-11-20 02:04:45,960 - mitsuki - INFO     -   / __ `__ \/ / __/ ___/ / / / //_/ /
+2025-11-20 02:04:45,960 - mitsuki - INFO     -  / / / / / / / /_(__  ) /_/ / ,< / /
+2025-11-20 02:04:45,960 - mitsuki - INFO     - /_/ /_/ /_/_/\__/____/\__,_/_/|_/_/
+2025-11-20 02:04:45,960 - mitsuki - INFO     -     °❀˖ ° °❀⋆.ೃ࿔*:･  ° ❀˖°
+2025-11-20 02:04:45,960 - mitsuki - INFO     - 
+2025-11-20 02:04:45,960 - mitsuki - INFO     - :: Mitsuki ::                (0.1.0)
+2025-11-20 02:04:45,960 - mitsuki - INFO     - 
+2025-11-20 02:04:45,960 - mitsuki - INFO     - Mitsuki application starting on http://127.0.0.1:8000
+2025-11-20 02:04:45,961 - _granian - INFO     - Starting granian (main PID: 19002)
+2025-11-20 02:04:45,967 - _granian - INFO     - Listening at: http://127.0.0.1:8000
+2025-11-20 02:04:45,976 - _granian - INFO     - Spawning worker-1 with PID: 19005
+2025-11-20 02:04:46,370 - _granian.workers - INFO     - Started worker-1
+2025-11-20 02:04:46,370 - _granian.workers - INFO     - Started worker-1 runtime-1
+```
+
+And hit the docs on `http://127.0.0.1:8000/docs`:
+
+![](./doc_assets/mitsuki_init.png)
+
 
 ## Why Mitsuki?
 
@@ -314,16 +372,6 @@ MITSUKI_PROFILE=production python app.py
 ```
 
 Same code, different environments. Keeps everything across environments explicit and readable.
-
-## CLI Tool
-
-Bootstrap new projects with the `mitsuki` CLI.
-
-```bash
-mitsuki init
-```
-
-This will guide you through creating a new project with a clean structure, including controllers, services, repositories, and configuration for different environments.
 
 ## Configuration
 
