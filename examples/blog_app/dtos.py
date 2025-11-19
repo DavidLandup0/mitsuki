@@ -1,5 +1,3 @@
-"""Data Transfer Objects for Blog App."""
-
 from dataclasses import dataclass
 from typing import Optional
 

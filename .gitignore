@@ -35,3 +35,7 @@ target/
 # OS
 .DS_Store
 Thumbs.db
+
+
+# Examples
+examples/blog_app/uploads

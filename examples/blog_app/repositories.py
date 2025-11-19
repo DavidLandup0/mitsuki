@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from models import Comment, Post, PostTag, Tag, User
-from sqlalchemy import func, select, text
+from models import Post, User
+from sqlalchemy import func, select
 
 from mitsuki import CrudRepository, Modifying, Query
+from mitsuki.data.repository import get_database_adapter
 
 
 @CrudRepository(entity=User)
@@ -15,7 +16,7 @@ class UserRepository:
     async def find_by_username(self, username: str): ...
     async def count_by_active(self, active: bool) -> int: ...
 
-    # Custom query: Find users with most posts
+    # Custom query: Find active users
     @Query("""
         SELECT u FROM User u
         WHERE u.active = :active
@@ -23,14 +24,12 @@ class UserRepository:
     """)
     async def find_active_users(self, active: bool, limit: int, offset: int): ...
 
-    # Custom SQLAlchemy query: Find users with post stats
-    async def find_users_with_post_stats(self, min_posts: int = 0):
+    # Custom SQLAlchemy query: User statistics
+    async def get_user_stats(self, min_posts: int = 0):
         """
         Example of using get_connection() for custom SQLAlchemy Core queries.
-        This demonstrates a complex JOIN query that can't easily be done with @Query.
+        Gets user statistics with post counts and total views.
         """
-        from mitsuki.data.repository import get_database_adapter
-
         async with self.get_connection() as conn:
             adapter = get_database_adapter()
 
@@ -38,7 +37,7 @@ class UserRepository:
             user_table = adapter.get_table(User)
             post_table = adapter.get_table(Post)
 
-            # Build complex query with SQLAlchemy Core
+            # Build query with SQLAlchemy Core
             query = (
                 select(
                     user_table.c.id,
@@ -58,7 +57,6 @@ class UserRepository:
             result = await conn.execute(query)
             rows = result.fetchall()
 
-            # Return as list of dicts
             return [
                 {
                     "id": row.id,
@@ -80,19 +78,7 @@ class PostRepository:
     async def find_by_author_id(self, author_id: int): ...
     async def count_by_published(self, published: bool) -> int: ...
 
-    # Custom query: Find trending posts (recent + high views)
-    @Query("""
-        SELECT p FROM Post p
-        WHERE p.published = true
-        AND p.published_at > :since
-        AND p.views > :min_views
-        ORDER BY p.views DESC, p.published_at DESC
-    """)
-    async def find_trending(
-        self, since: datetime, min_views: int, limit: int, offset: int
-    ): ...
-
-    # Custom query with positional params
+    # Custom query: Find posts by author and status
     @Query("""
         SELECT p FROM Post p
         WHERE p.author_id = ?1
@@ -128,111 +114,31 @@ class PostRepository:
     """)
     async def publish_post(self, id: int, published_at: datetime) -> int: ...
 
-    # Delete old unpublished drafts
-    @Modifying
-    @Query("""
-        DELETE FROM Post p
-        WHERE p.published = false
-        AND p.created_at < :cutoff_date
-    """)
-    async def delete_old_drafts(self, cutoff_date: datetime) -> int: ...
-
-    # Custom SQLAlchemy query: Complex analytics query
-    async def get_tag_analytics(self, post_id: int):
+    # Custom SQLAlchemy query: Post analytics
+    async def get_post_analytics(self):
         """
-        Example of complex analytics using raw SQL via get_connection().
-        Gets all tags for a post along with how many other posts share those tags.
+        Example of analytics using get_connection().
+        Gets aggregate statistics across all posts.
         """
         async with self.get_connection() as conn:
-            # Use text() for raw SQL when needed
-            query = text("""
-                SELECT
-                    t.id,
-                    t.name,
-                    t.slug,
-                    COUNT(DISTINCT pt2.post_id) as related_post_count
-                FROM post_tag pt1
-                JOIN tag t ON pt1.tag_id = t.id
-                LEFT JOIN post_tag pt2 ON t.id = pt2.tag_id AND pt2.post_id != :post_id
-                WHERE pt1.post_id = :post_id
-                GROUP BY t.id, t.name, t.slug
-                ORDER BY related_post_count DESC
-            """)
+            adapter = get_database_adapter()
+            post_table = adapter.get_table(Post)
 
-            result = await conn.execute(query, {"post_id": post_id})
-            rows = result.fetchall()
+            query = select(
+                func.count(post_table.c.id).label("total_posts"),
+                func.count(post_table.c.id)
+                .filter(post_table.c.published == True)
+                .label("published_posts"),
+                func.sum(post_table.c.views).label("total_views"),
+                func.avg(post_table.c.views).label("avg_views"),
+            )
 
-            return [
-                {
-                    "id": row.id,
-                    "name": row.name,
-                    "slug": row.slug,
-                    "related_post_count": row.related_post_count,
-                }
-                for row in rows
-            ]
+            result = await conn.execute(query)
+            row = result.fetchone()
 
-
-@CrudRepository(entity=Comment)
-class CommentRepository:
-    """Repository for Comment entity."""
-
-    # Query DSL methods
-    async def find_by_post_id(self, post_id: int): ...
-    async def find_by_user_id(self, user_id: int): ...
-    async def count_by_approved(self, approved: bool) -> int: ...
-
-    # Find approved comments for a post
-    @Query("""
-        SELECT c FROM Comment c
-        WHERE c.post_id = :post_id
-        AND c.approved = :approved
-        ORDER BY c.created_at DESC
-    """)
-    async def find_post_comments(
-        self, post_id: int, approved: bool, limit: int, offset: int
-    ): ...
-
-    # Approve all comments for a post
-    @Modifying
-    @Query("UPDATE Comment c SET c.approved = true WHERE c.post_id = :post_id")
-    async def approve_all_for_post(self, post_id: int) -> int: ...
-
-    # Delete spam comments
-    @Modifying
-    @Query("""
-        DELETE FROM Comment c
-        WHERE c.approved = false
-        AND c.created_at < :cutoff_date
-    """)
-    async def delete_spam(self, cutoff_date: datetime) -> int: ...
-
-
-@CrudRepository(entity=Tag)
-class TagRepository:
-    """Repository for Tag entity."""
-
-    # Query DSL methods
-    async def find_by_slug(self, slug: str): ...
-    async def find_by_name(self, name: str): ...
-
-    # Find popular tags (most used)
-    @Query("""
-        SELECT t FROM Tag t
-        ORDER BY t.name ASC
-    """)
-    async def find_all_sorted(self, limit: int, offset: int): ...
-
-
-@CrudRepository(entity=PostTag)
-class PostTagRepository:
-    """Repository for PostTag junction table."""
-
-    # Query DSL methods
-    async def find_by_post_id(self, post_id: int): ...
-    async def find_by_tag_id(self, tag_id: int): ...
-
-    # Delete all tags for a post
-    @Modifying
-    @Query("DELETE FROM PostTag pt WHERE pt.post_id = :post_id")
-    async def delete_post_tags(self, post_id: int) -> int: ...
+            return {
+                "total_posts": row.total_posts or 0,
+                "published_posts": row.published_posts or 0,
+                "total_views": row.total_views or 0,
+                "avg_views": float(row.avg_views) if row.avg_views else 0.0,
+            }

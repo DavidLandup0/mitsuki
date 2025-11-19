@@ -19,6 +19,19 @@ class User:
     created_at: datetime = Field(update_on_create=True)
     updated_at: datetime = Field(update_on_save=True)
 
+    def to_dto(self):
+        """Convert to UserDTO for API responses."""
+        from dtos import UserDTO
+
+        return UserDTO(
+            id=self.id,
+            username=self.username,
+            email=self.email,
+            bio=self.bio,
+            active=self.active,
+            created_at=self.created_at.isoformat(),
+        )
+
 
 @Entity()
 @dataclass
@@ -36,38 +49,18 @@ class Post:
     created_at: datetime = Field(update_on_create=True)
     updated_at: datetime = Field(update_on_save=True)
 
+    def to_dto(self):
+        """Convert to PostDTO for API responses."""
+        from dtos import PostDTO
 
-@Entity()
-@dataclass
-class Comment:
-    """Comment entity for blog posts."""
-
-    id: int = Id()
-    post_id: int = 0
-    user_id: int = 0
-    content: str = ""
-    approved: bool = False
-    created_at: datetime = Field(update_on_create=True)
-    updated_at: datetime = Field(update_on_save=True)
-
-
-@Entity()
-@dataclass
-class Tag:
-    """Tag entity for categorizing posts."""
-
-    id: int = Id()
-    name: str = Column(unique=True)
-    slug: str = Column(unique=True)
-    created_at: datetime = Field(update_on_create=True)
-
-
-@Entity()
-@dataclass
-class PostTag:
-    """Many-to-many relationship between posts and tags."""
-
-    id: int = Id()
-    post_id: int = 0
-    tag_id: int = 0
-    created_at: datetime = Field(update_on_create=True)
+        return PostDTO(
+            id=self.id,
+            title=self.title,
+            slug=self.slug,
+            content=self.content,
+            author_id=self.author_id,
+            views=self.views,
+            published=self.published,
+            published_at=self.published_at.isoformat() if self.published_at else None,
+            created_at=self.created_at.isoformat(),
+        )

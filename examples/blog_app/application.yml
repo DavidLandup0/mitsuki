@@ -1,7 +1,7 @@
 server:
   port: 8000
-  type: granian  # Options: uvicorn (default), granian
-  workers: 1     # Number of worker processes (Granian only)
+  type: granian  # granian, uvicorn, socketify
+  workers: 1     # Number of worker processes
   access_log: true  # Enable access logging
   # Ignore trailing slashes
   ignore_trailing_slash: true
