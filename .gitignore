@@ -35,6 +35,3 @@ target/
 # OS
 .DS_Store
 Thumbs.db
-
-# Benchmark results
-benchmarks/results/
