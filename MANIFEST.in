@@ -1,0 +1,4 @@
+include README.md
+include LICENSE.md
+recursive-include mitsuki/cli/templates *.tpl
+recursive-include mitsuki/config *.yml
