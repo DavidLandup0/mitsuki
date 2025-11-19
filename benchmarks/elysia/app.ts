@@ -1,6 +1,3 @@
-/**
- * Elysia hello world benchmark app.
- */
 import { Elysia } from 'elysia';
 
 const app = new Elysia()

@@ -1,7 +1,6 @@
-"""Django hello world benchmark app."""
-
 import django
 from django.conf import settings
+from django.core.asgi import get_asgi_application
 from django.http import JsonResponse
 from django.urls import path
 
@@ -23,17 +22,13 @@ def hello(request):
 
 urlpatterns = [path("", hello)]
 
-
-# ASGI application for production servers
-from django.core.asgi import get_asgi_application
-
 application = get_asgi_application()
 
 if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        application,  # Pass the object directly, not the string
+        application,
         host="0.0.0.0",
         port=8000,
         log_level="critical",

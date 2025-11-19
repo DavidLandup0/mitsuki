@@ -1,9 +1,1 @@
-# Core dependencies
-granian
-starlette>=0.32.0
-
-# Data layer dependencies
-sqlalchemy>=2.0.0
-aiosqlite>=0.19.0  # For SQLite async support
-asyncpg>=0.29.0    # For PostgreSQL async support (optional)
-aiomysql>=0.2.0    # For MySQL async support (optional)
+mitsuki

@@ -1,5 +1,3 @@
-"""Flask hello world benchmark app."""
-
 import logging
 
 from flask import Flask, jsonify

@@ -2,22 +2,22 @@ version: '3.8'
 services:
   mitsuki-socketify:
     build:
-      context: ..
-      dockerfile: benchmarks/mitsuki-socketify/Dockerfile
+      context: ./mitsuki-socketify
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
 
   mitsuki-granian:
     build:
-      context: ..
-      dockerfile: benchmarks/mitsuki-granian/Dockerfile
+      context: ./mitsuki-granian
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
 
   mitsuki-uvicorn:
     build:
-      context: ..
-      dockerfile: benchmarks/mitsuki-uvicorn/Dockerfile
+      context: ./mitsuki-uvicorn
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
 

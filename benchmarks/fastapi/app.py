@@ -1,5 +1,4 @@
-"""FastAPI hello world benchmark app."""
-
+import uvicorn
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -11,6 +10,4 @@ def hello():
 
 
 if __name__ == "__main__":
-    import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="critical")
