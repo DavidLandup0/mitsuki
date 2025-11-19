@@ -108,7 +108,6 @@ project/
 └── application-production.yml   # Production overrides
 ```
 
-#TODO is this accurate?
 When `MITSUKI_PROFILE=production`, Mitsuki loads:
 1. `application.yml` (base)
 2. `application-production.yml` (overrides)
