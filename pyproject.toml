@@ -13,9 +13,9 @@ authors = [
 ]
 keywords = ["web", "framework", "python", "asgi", "dependency-injection"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 1 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache 2.0",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
