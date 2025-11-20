@@ -1,8 +1,8 @@
-Running 30s test @ http://0.0.0.0:8000
+Running 1m test @ http://0.0.0.0:8000
   4 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     3.66ms  799.87us  19.42ms   82.48%
-    Req/Sec     6.87k     1.00k    8.84k    67.67%
-  819952 requests in 30.01s, 118.86MB read
-Requests/sec:  27320.12
-Transfer/sec:      3.96MB
+    Latency     3.27ms    1.28ms  41.70ms   96.38%
+    Req/Sec     7.82k     0.91k    9.86k    75.04%
+  1868654 requests in 1.00m, 270.88MB read
+Requests/sec:  31124.61
+Transfer/sec:      4.51MB

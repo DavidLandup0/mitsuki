@@ -40,7 +40,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/mitsuki-socketify-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/mitsuki-socketify-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -58,7 +58,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/mitsuki-granian-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/mitsuki-granian-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -76,7 +76,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/mitsuki-uvicorn-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/mitsuki-uvicorn-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -94,7 +94,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/fastapi-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/fastapi-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -112,7 +112,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/starlette-uvicorn-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/starlette-uvicorn-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -130,7 +130,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/starlette-granian-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/starlette-granian-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -148,7 +148,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/flask-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/flask-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -166,7 +166,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/django-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/django-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -184,7 +184,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/elysia-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/elysia-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -202,7 +202,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/express-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/express-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""
@@ -224,7 +224,7 @@ wait_for_service 8000
 echo "Warming up..."
 wrk -t4 -c100 -d5s http://0.0.0.0:8000 > /dev/null 2>&1
 echo "Running benchmark..."
-wrk -t4 -c100 -d30s http://0.0.0.0:8000 > results/spring-local.txt
+wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/spring-local.txt
 kill $CURRENT_PID
 wait $CURRENT_PID 2>/dev/null || true
 CURRENT_PID=""

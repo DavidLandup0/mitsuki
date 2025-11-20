@@ -42,7 +42,7 @@ for i in ${!services[@]}; do
   echo "Warming up..."
   wrk -t4 -c100 -d5s http://127.0.0.1:$port > /dev/null 2>&1
   echo "Running benchmark..."
-  wrk -t4 -c100 -d30s http://127.0.0.1:$port > results/$service.txt
+  wrk -t4 -c100 -d60s http://127.0.0.1:$port > results/$service.txt
 
   # Stop the service
   echo "Stopping $service..."
