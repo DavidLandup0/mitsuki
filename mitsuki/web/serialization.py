@@ -143,31 +143,30 @@ class MitsukiJSONEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-def serialize_json(data: Any, indent: int = None) -> bytes:
+def serialize_json(data: Any, indent: int = None) -> str:
     """
-    Serialize data to JSON bytes using orjson with fallback to MitsukiJSONEncoder.
+    Serialize data to JSON string using orjson with fallback to MitsukiJSONEncoder.
 
     Args:
         data: Data to serialize
         indent: Indentation level (None for compact output)
 
     Returns:
-        JSON bytes
+        JSON string
 
     Raises:
         TypeError: If data contains non-serializable objects
     """
     try:
         if indent is None:
-            return orjson.dumps(data)
+            # orjson.dumps returns bytes, decode to str
+            return orjson.dumps(data).decode("utf-8")
         else:
             # orjson doesn't support indent, fall back to stdlib
-            return json.dumps(data, cls=MitsukiJSONEncoder, indent=indent).encode(
-                "utf-8"
-            )
+            return json.dumps(data, cls=MitsukiJSONEncoder, indent=indent)
     except (TypeError, ValueError):
         # Fallback to custom encoder for types orjson doesn't handle
-        return json.dumps(data, cls=MitsukiJSONEncoder, indent=indent).encode("utf-8")
+        return json.dumps(data, cls=MitsukiJSONEncoder, indent=indent)
 
 
 def serialize_json_safe(data: Any, indent: int = None) -> str:
