@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2025-11-26
+
+### Added
+- `orjson` as a dependency instead of standard `json` library for Mitsuki's JSON encoder
+- Monkey-patch for Starlette's `init_headers` function, for the common case of JSON responses with no headers
+
+[0.1.1]: https://github.com/DavidLandup0/mitsuki/releases/tag/v0.1.1
+
 ## [0.1.0] - 2025-11-20
 
 ### Added
