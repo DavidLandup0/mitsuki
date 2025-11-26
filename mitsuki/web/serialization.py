@@ -8,6 +8,8 @@ from enum import Enum
 from typing import Any, Callable, Dict, Type
 from uuid import UUID
 
+import orjson
+
 from mitsuki.core.container import get_container
 
 logger = logging.getLogger(__name__)
@@ -141,21 +143,31 @@ class MitsukiJSONEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-def serialize_json(data: Any, indent: int = None) -> str:
+def serialize_json(data: Any, indent: int = None) -> bytes:
     """
-    Serialize data to JSON string using MitsukiJSONEncoder.
+    Serialize data to JSON bytes using orjson with fallback to MitsukiJSONEncoder.
 
     Args:
         data: Data to serialize
         indent: Indentation level (None for compact output)
 
     Returns:
-        JSON string
+        JSON bytes
 
     Raises:
         TypeError: If data contains non-serializable objects
     """
-    return json.dumps(data, cls=MitsukiJSONEncoder, indent=indent)
+    try:
+        if indent is None:
+            return orjson.dumps(data)
+        else:
+            # orjson doesn't support indent, fall back to stdlib
+            return json.dumps(data, cls=MitsukiJSONEncoder, indent=indent).encode(
+                "utf-8"
+            )
+    except (TypeError, ValueError):
+        # Fallback to custom encoder for types orjson doesn't handle
+        return json.dumps(data, cls=MitsukiJSONEncoder, indent=indent).encode("utf-8")
 
 
 def serialize_json_safe(data: Any, indent: int = None) -> str:

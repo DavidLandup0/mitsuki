@@ -131,7 +131,7 @@ class RouteBuilder:
                             headers["content-type"] = "text/plain; charset=utf-8"
                         else:
                             # dict, list, or other JSON-serializable types
-                            content = serialize_json(body).encode("utf-8")
+                            content = serialize_json(body)
                             headers["content-type"] = "application/json"
                     else:
                         # User set custom Content-Type, respect it and serialize accordingly
@@ -140,7 +140,7 @@ class RouteBuilder:
                         elif isinstance(body, str):
                             content = body.encode("utf-8")
                         else:
-                            content = serialize_json(body).encode("utf-8")
+                            content = serialize_json(body)
 
                     return Response(
                         content=content,
@@ -153,7 +153,7 @@ class RouteBuilder:
                         result = self.response_processor.process_response_data(
                             result, produces_type, exclude_fields
                         )
-                    content = serialize_json(result).encode("utf-8")
+                    content = serialize_json(result)
                     return Response(
                         content=content,
                         status_code=200,
@@ -167,7 +167,7 @@ class RouteBuilder:
                 FileTooLargeException,
                 InvalidFileTypeException,
             ) as e:
-                content = serialize_json({"error": str(e)}).encode("utf-8")
+                content = serialize_json({"error": str(e)})
                 return Response(
                     content=content,
                     status_code=400,
@@ -178,7 +178,7 @@ class RouteBuilder:
                     logging.exception("Error handling request")
                     content = serialize_json(
                         {"error": str(e), "type": type(e).__name__}
-                    ).encode("utf-8")
+                    )
                     return Response(
                         content=content,
                         status_code=500,
@@ -186,9 +186,7 @@ class RouteBuilder:
                     )
                 else:
                     logging.error(f"Internal server error: {e}")
-                    content = serialize_json({"error": "Internal server error"}).encode(
-                        "utf-8"
-                    )
+                    content = serialize_json({"error": "Internal server error"})
                     return Response(
                         content=content,
                         status_code=500,
