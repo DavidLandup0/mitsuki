@@ -1,9 +1,9 @@
 import inspect
 import logging
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import Response as StarletteResponse
 from starlette.routing import Route
 
 from mitsuki.core.container import get_container
@@ -18,6 +18,31 @@ from mitsuki.web.params import extract_param_metadata
 from mitsuki.web.response import ResponseEntity
 from mitsuki.web.response_processor import ResponseProcessor
 from mitsuki.web.serialization import serialize_json
+
+_starlette_init_headers = StarletteResponse.init_headers
+_JSON_CONTENT_TYPE_HEADER = (b"content-type", b"application/json")
+
+
+def _fast_init_headers(self, headers: Optional[dict] = None) -> None:
+    """
+    A monkey-patched version of Starlette's `init_headers`.
+
+    This provides a "fast path" for a common case: a JSON response
+    with no custom headers. It avoids the loops, string operations,
+    and set creations that are unnecessary in such a case. For any other case,
+    it falls back to the original Starlette method.
+    """
+    if not headers and self.media_type == "application/json":
+        content_length = str(len(self.body))
+        self.raw_headers = [
+            _JSON_CONTENT_TYPE_HEADER,
+            (b"content-length", content_length.encode("latin-1")),
+        ]
+    else:
+        _starlette_init_headers(self, headers)
+
+
+StarletteResponse.init_headers = _fast_init_headers
 
 
 class RouteBuilder:
@@ -105,7 +130,7 @@ class RouteBuilder:
                     result = await handler()
 
                 # If handler returns a Starlette Response, return it directly
-                if isinstance(result, Response):
+                if isinstance(result, StarletteResponse):
                     return result
 
                 # Handle ResponseEntity
@@ -142,7 +167,7 @@ class RouteBuilder:
                         else:
                             content = serialize_json(body)
 
-                    return Response(
+                    return StarletteResponse(
                         content=content,
                         status_code=result.status,
                         headers=headers,
@@ -154,10 +179,10 @@ class RouteBuilder:
                             result, produces_type, exclude_fields
                         )
                     content = serialize_json(result)
-                    return Response(
+                    return StarletteResponse(
                         content=content,
                         status_code=200,
-                        headers={"content-type": "application/json"},
+                        media_type="application/json",
                     )
 
             except (
@@ -168,7 +193,7 @@ class RouteBuilder:
                 InvalidFileTypeException,
             ) as e:
                 content = serialize_json({"error": str(e)})
-                return Response(
+                return StarletteResponse(
                     content=content,
                     status_code=400,
                     headers={"content-type": "application/json"},
@@ -179,7 +204,7 @@ class RouteBuilder:
                     content = serialize_json(
                         {"error": str(e), "type": type(e).__name__}
                     )
-                    return Response(
+                    return StarletteResponse(
                         content=content,
                         status_code=500,
                         headers={"content-type": "application/json"},
@@ -187,7 +212,7 @@ class RouteBuilder:
                 else:
                     logging.error(f"Internal server error: {e}")
                     content = serialize_json({"error": "Internal server error"})
-                    return Response(
+                    return StarletteResponse(
                         content=content,
                         status_code=500,
                         headers={"content-type": "application/json"},
