@@ -409,19 +409,18 @@ users = await repo.find_by_active_and_age_greater_than(True, 21)
 
 ### Supported Operators
 
-| Operator | DSL Syntax | SQL |
-|----------|------------|-----|
-| Equals | `find_by_field` | `field = ?` |
-| Greater Than | `field_greater_than` | `field > ?` |
-| Less Than | `field_less_than` | `field < ?` |
-| Greater Than or Equal | `field_greater_than_equal` | `field >= ?` |
-| Less Than or Equal | `field_less_than_equal` | `field <= ?` |
-
-| Like (Pattern) | `field_like` | `field LIKE ?` | ✅ Implemented |
-| In | `field_in` | `field IN (?)` | ✅ Implemented |
-| Not In | `field_not_in` | `field NOT IN (?)` | ✅ Implemented |
-| Is Null | `field_is_null` | `field IS NULL` | ✅ Implemented |
-| Is Not Null | `field_is_not_null` | `field IS NOT NULL` | ✅ Implemented |
+| Operator              | DSL Syntax                 | SQL            |
+|-----------------------|----------------------------|----------------|
+| Equals                | `find_by_field`            | `field = ?`    |
+| Greater Than          | `field_greater_than`       | `field > ?`    |
+| Less Than             | `field_less_than`          | `field < ?`    |
+| Greater Than or Equal | `field_greater_than_equal` | `field >= ?`   |
+| Less Than or Equal    | `field_less_than_equal`    | `field <= ?`   |
+| Like (Pattern)        | `field_like`               | `field LIKE ?` |
+| In                    | `field_in`                 | `field IN (?)` |
+| Not In                | `field_not_in`             | `field NOT IN (?)` |
+| Is Null               | `field_is_null`            | `field IS NULL`|
+| Is Not Null           | `field_is_not_null`        | `field IS NOT NULL` |
 
 **Coming soon:**
 - `field_not` - NOT equals (!=)

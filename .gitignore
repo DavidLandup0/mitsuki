@@ -42,3 +42,7 @@ examples/blog_app/uploads
 
 # PyPi
 .pypirc
+
+# VitePress
+docs/.vitepress/cache
+docs/.vitepress/dist
