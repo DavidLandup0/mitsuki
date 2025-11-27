@@ -9,9 +9,9 @@ hero:
   actions:
     - theme: brand
       text: Get Started
-      link: /01_overview
+      link: /00_getting_started
     - theme: alt
-      text: API Examples
-      link: /api-examples
+      text: Examples Apps
+      link: /examples
 ---
 

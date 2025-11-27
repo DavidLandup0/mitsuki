@@ -15,6 +15,7 @@ export default defineConfig({
       {
         text: 'Documentation',
         items: [
+          { text: 'Getting Started', link: '/00_getting_started' },
           { text: 'Overview', link: '/01_overview' },
           { text: 'Decorators', link: '/02_decorators' },
           { text: 'Repositories', link: '/03_repositories' },
