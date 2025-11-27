@@ -80,8 +80,10 @@ Furthermore, a true benchmark includes different operations - plaintext, JSON se
 We run a *simple* benchmark, not accounting for all possible combinations and circumstances, on *consumer grade hardware* for two reasons:
 
 - It's what you get out of the box, on your device, likely.
-- It's a sanity check to confirm that Python  web applications can go shoulder-to-shoulder with Java and JavaScript performance-wise.
+- It's a sanity check to confirm that Python web applications can go shoulder-to-shoulder with Java and JavaScript performance-wise.
 
-You can indeed use Python at enterprise scale, without the enterprise pains.
+Running this on different hardware will show different upper ceilings. You can also change the environment such as to favor any framework.
+
+The point is - you can indeed use Python at enterprise scale, without the enterprise pains.
 
 This is where Mitsuki is designed to come in.
