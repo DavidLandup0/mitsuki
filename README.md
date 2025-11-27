@@ -22,7 +22,8 @@
 
 <div align="center">
 <a href="/docs">Documentation</a> |
-<a href="/benchmarks">Benchmarks</a>
+<a href="/benchmarks">Benchmarks</a> |
+<a href="https://deepwiki.com/DavidLandup0/mitsuki">DeepWiki</a>
 </div>
 <hr>
 
@@ -164,9 +165,30 @@ Services tend to evolve into certain time-tested patterns. Mitsuki supports them
 
 ### Server-Agnostic
 
-Mitsuki isn't tied to a single server library. We currently support `uvicorn` and `granian`, with experimental support for `socketify`.
+Mitsuki isn't tied to a single server library. We currently support `uvicorn` and `granian`, with experimental support for `socketify`. We use `starlette` as an intermediary ASGI-compliant layer.
 
-In the future - we want to maintain the key components in a plug-and-play fashion, staying up to date with the landscape of tooling.
+```
+          ┌──────────────────────────┐
+          │    Mitsuki Application   │
+          └────────────┬─────────────┘
+                       │
+                       ▼
+          ┌────────────────────────┐
+          │     Starlette ASGI     │
+          │       Framework        │
+          └────────────┬───────────┘
+                       │
+          ┌────────────┼────────────┐
+          │            │            │
+          ▼            ▼            ▼
+     ┌─────────┐  ┌─────────┐  ┌───────────┐
+     │ Granian │  │ Uvicorn │  │ Socketify │
+     └─────────┘  └─────────┘  └───────────┘
+```
+
+In the future - we will likely not commit to only following the ASGI specification, with plans to support RSGI and likely a custom framework to directly leverage `granian`, `uvicorn` and `socketify` other than through the ASGI interface.
+
+We want to maintain the key components in a plug-and-play fashion, staying up to date with the landscape of tooling. This means not locking the framework into a single paradigm.
 
 ## Core Design Principles
 
@@ -473,7 +495,6 @@ if __name__ == "__main__":
 - Dependencies wired automatically (no factories, no setup)
 - Database created on startup (SQLite by default)
 - JSON API running on port 8000
-- Type-safe, async, production-ready
 
 ## Contributing
 
