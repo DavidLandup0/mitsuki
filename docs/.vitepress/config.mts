@@ -33,6 +33,7 @@ export default defineConfig({
           { text: 'Metrics', link: '/15_metrics' },
           { text: 'OpenAPI', link: '/16_openapi' },
           { text: 'Database', link: '/17_database' },
+          { text: 'Database Migrations', link: '/19_database_migrations' },
           { text: 'Dockerizing Mitsuki', link: '/18_dockerizing_mitsuki' },
         ]
       }

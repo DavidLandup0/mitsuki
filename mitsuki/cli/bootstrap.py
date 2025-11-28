@@ -102,6 +102,11 @@ def init():
             domain_name = click.prompt("Domain name")
             domains.append(domain_name)
 
+    # Alembic setup
+    setup_alembic = click.confirm(
+        "Setup Alembic for database migrations?", default=True
+    )
+
     # Create project structure
     project_root = Path.cwd() / app_name
     package_dir = project_root / app_name
@@ -151,6 +156,19 @@ def init():
     # Create domain files
     for domain_name in domains:
         create_domain_files(app_dir, app_name, domain_name)
+
+    # Update domain/__init__.py to export all entities for Alembic
+    if domains:
+        domain_exports = "\n".join(
+            [
+                f"from .{domain_name.lower()} import {domain_name}"
+                for domain_name in domains
+            ]
+        )
+        domain_init = (
+            f'"""{description or f"{app_name} domain entities"}"""\n{domain_exports}\n'
+        )
+        write_file(app_dir / "domain" / "__init__.py", domain_init)
 
     # Create configuration files
     db_url_map = {
@@ -205,12 +223,44 @@ def init():
     gitignore = read_template("gitignore.tpl")
     write_file(project_root / ".gitignore", gitignore)
 
+    # Setup Alembic if requested
+    if setup_alembic:
+        alembic_dir = project_root / "alembic"
+        versions_dir = alembic_dir / "versions"
+        create_directory(alembic_dir)
+        create_directory(versions_dir)
+
+        # Create alembic.ini
+        alembic_ini = read_template("alembic.ini.tpl")
+        write_file(project_root / "alembic.ini", alembic_ini)
+
+        # Create alembic/env.py
+        alembic_env = read_template("alembic_env.py.tpl").replace(
+            "{{app_name}}", app_name
+        )
+        write_file(alembic_dir / "env.py", alembic_env)
+
+        # Create alembic/script.py.mako
+        alembic_script = read_template("alembic_script.py.mako.tpl")
+        write_file(alembic_dir / "script.py.mako", alembic_script)
+
+        # Create empty __init__.py in versions
+        write_file(versions_dir / "__init__.py", "")
+
+        click.echo("\n✓ Alembic configured for database migrations")
+
     click.echo(f"\nSuccessfully created Mitsuki application: {app_name}")
     click.echo("\nTo get started:")
     click.echo(f"  cd {app_name}")
     click.echo(f"  python3 -m {app_name}.src.app")
     click.echo("\nOr with a specific profile:")
     click.echo(f"  MITSUKI_PROFILE=development python3 -m {app_name}.src.app")
+
+    if setup_alembic:
+        click.echo("\nTo create your first migration:")
+        click.echo(f"  cd {app_name}")
+        click.echo("  alembic revision --autogenerate -m 'initial schema'")
+        click.echo("  alembic upgrade head")
 
 
 def main():

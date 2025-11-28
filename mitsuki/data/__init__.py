@@ -1,7 +1,7 @@
 from mitsuki.config.properties import get_config
 from mitsuki.core.enums import DatabaseAdapter as DatabaseAdapterEnum
 from mitsuki.data.adapters.base import DatabaseAdapter
-from mitsuki.data.adapters.sqlalchemy import SQLAlchemyAdapter
+from mitsuki.data.adapters.sqlalchemy import SQLAlchemyAdapter, convert_to_async_url
 from mitsuki.data.entity import Entity, get_all_entities, get_entity_metadata, is_entity
 from mitsuki.data.query import ComparisonOperator, QueryCondition, QueryOperation
 from mitsuki.data.query import Query as QueryObject
@@ -23,6 +23,49 @@ from mitsuki.data.types import (
     UUIDv5,
     UUIDv7,
 )
+
+
+def get_sqlalchemy_metadata():
+    """
+    Get the SQLAlchemy MetaData object from the database adapter.
+
+    This is useful for Alembic migrations to access table definitions.
+    If the database adapter hasn't been set up yet, this will create the adapter
+    and populate metadata from entity definitions without creating actual database tables.
+
+    Returns:
+        sqlalchemy.MetaData: The SQLAlchemy MetaData containing all table definitions
+
+    Raises:
+        ValueError: If database adapter is not SQLAlchemyAdapter
+
+    Example:
+        # In alembic/env.py
+        from mitsuki.data import get_sqlalchemy_metadata
+        target_metadata = get_sqlalchemy_metadata()
+    """
+    from mitsuki.exceptions import DataException
+
+    try:
+        adapter = get_database_adapter()
+    except DataException:
+        # Adapter not initialized yet
+        # Create adapter and populate metadata without creating tables
+        adapter = SQLAlchemyAdapter()
+        set_database_adapter(adapter)
+
+        # Populate metadata by creating Table objects (but not creating actual database tables)
+        entities = get_all_entities()
+        for entity_class, entity_meta in entities.items():
+            adapter._get_or_create_table(entity_meta)
+
+    if not isinstance(adapter, SQLAlchemyAdapter):
+        raise ValueError(
+            f"Database adapter is not SQLAlchemy. "
+            f"Got {type(adapter).__name__}. "
+            f"Alembic integration requires SQLAlchemy adapter."
+        )
+    return adapter.metadata
 
 
 async def initialize_database():
@@ -112,4 +155,7 @@ __all__ = [
     "SQLAlchemyAdapter",
     # Initialization
     "initialize_database",
+    # SQLAlchemy integration
+    "get_sqlalchemy_metadata",
+    "convert_to_async_url",
 ]

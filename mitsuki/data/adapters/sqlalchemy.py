@@ -79,6 +79,25 @@ class GUID(TypeDecorator):
             return value
 
 
+def convert_to_async_url(connection_string: str) -> str:
+    """
+    Convert a sync database URL to an async-compatible URL.
+
+    Args:
+        connection_string: Database URL (e.g., postgresql://...)
+
+    Returns:
+        Async-compatible database URL (e.g., postgresql+asyncpg://...)
+    """
+    if connection_string.startswith("postgresql://"):
+        return connection_string.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif connection_string.startswith("mysql://"):
+        return connection_string.replace("mysql://", "mysql+aiomysql://", 1)
+    elif connection_string.startswith("sqlite://"):
+        return connection_string.replace("sqlite://", "sqlite+aiosqlite://", 1)
+    return connection_string
+
+
 class SQLAlchemyAdapter(DatabaseAdapter):
     """
     SQLAlchemy-based database adapter with async support.
@@ -113,19 +132,9 @@ class SQLAlchemyAdapter(DatabaseAdapter):
             enable_pooling: Enable connection pooling (default: True, disable for SQLite)
         """
         # Convert sync connection strings to async
-        if connection_string.startswith("postgresql://"):
-            connection_string = connection_string.replace(
-                "postgresql://", "postgresql+asyncpg://", 1
-            )
-        elif connection_string.startswith("mysql://"):
-            connection_string = connection_string.replace(
-                "mysql://", "mysql+aiomysql://", 1
-            )
-        elif connection_string.startswith("sqlite://"):
-            connection_string = connection_string.replace(
-                "sqlite://", "sqlite+aiosqlite://", 1
-            )
-            # Disable pooling for SQLite (doesn't benefit from it)
+        connection_string = convert_to_async_url(connection_string)
+
+        if connection_string.startswith("sqlite"):
             enable_pooling = False
 
         # Disable pooling for SQLite (check again for already-async connection strings)
@@ -227,6 +236,10 @@ class SQLAlchemyAdapter(DatabaseAdapter):
 
         table = Table(table_name, self.metadata, *columns)
         self._tables[table_name] = table
+
+        # Attach metadata to entity class for Alembic integration
+        entity_meta.entity_class.metadata = self.metadata
+
         return table
 
     def get_table(self, entity_type: type) -> Table:

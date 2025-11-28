@@ -2,6 +2,7 @@
 Main application entry point.
 """
 import os
+
 from mitsuki import Application, Value, get_logger{{CONTROLLER_IMPORT}}
 
 

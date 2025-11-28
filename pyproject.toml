@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mitsuki"
-version = "0.1.2"
+version = "0.1.3"
 description = "Python web development framework. Mixing Python's productivity and flexibility with battle-hardened enterprise patterns."
 readme = "README.md"
 requires-python = ">=3.9"

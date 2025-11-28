@@ -6,9 +6,6 @@ import pytest
 
 from mitsuki import UUID, Column, Entity, Field, Id, UUIDv1, UUIDv4, UUIDv5, UUIDv7
 from mitsuki.data.entity import (
-    _entity_registry,
-    clear_entity_registry,
-    get_all_entities,
     get_entity_metadata,
     is_entity,
 )
@@ -17,16 +14,6 @@ from mitsuki.exceptions import EntityException, UUIDGenerationException
 
 class TestEntityBasics:
     """Test basic @Entity functionality"""
-
-    def setup_method(self):
-        """Clear entity registry before each test"""
-        self._saved_registry = get_all_entities()
-        clear_entity_registry()
-
-    def teardown_method(self):
-        """Restore entity registry after each test"""
-        clear_entity_registry()
-        _entity_registry.update(self._saved_registry)
 
     def test_entity_decorator_registers_entity(self):
         """Test that @Entity registers the entity in the registry"""
@@ -94,16 +81,6 @@ class TestEntityBasics:
 
 class TestFieldTypes:
     """Test all supported field types"""
-
-    def setup_method(self):
-        self._saved_registry = get_all_entities()
-        clear_entity_registry()
-
-    def teardown_method(self):
-        """Restore entity registry after each test"""
-        clear_entity_registry()
-
-        _entity_registry.update(self._saved_registry)
 
     def test_integer_field(self):
         """Test integer field type"""
@@ -213,16 +190,6 @@ class TestFieldTypes:
 class TestPrimaryKeyField:
     """Test Id() primary key field"""
 
-    def setup_method(self):
-        self._saved_registry = get_all_entities()
-        clear_entity_registry()
-
-    def teardown_method(self):
-        """Restore entity registry after each test"""
-        clear_entity_registry()
-
-        _entity_registry.update(self._saved_registry)
-
     def test_id_marker_creates_primary_key(self):
         """Test that Id() marks field as primary key"""
 
@@ -268,16 +235,6 @@ class TestPrimaryKeyField:
 
 class TestColumnConstraints:
     """Test Column() field constraints"""
-
-    def setup_method(self):
-        self._saved_registry = get_all_entities()
-        clear_entity_registry()
-
-    def teardown_method(self):
-        """Restore entity registry after each test"""
-        clear_entity_registry()
-
-        _entity_registry.update(self._saved_registry)
 
     def test_unique_constraint(self):
         """Test unique constraint"""
@@ -368,16 +325,6 @@ class TestColumnConstraints:
 
 class TestUUIDFields:
     """Test UUID field support"""
-
-    def setup_method(self):
-        self._saved_registry = get_all_entities()
-        clear_entity_registry()
-
-    def teardown_method(self):
-        """Restore entity registry after each test"""
-        clear_entity_registry()
-
-        _entity_registry.update(self._saved_registry)
 
     def test_uuid_default_version(self):
         """Test UUID() with default version (v4)"""
@@ -482,30 +429,19 @@ class TestUUIDFields:
             uuid.NAMESPACE_X500,
         ]
 
-        for ns in namespaces:
+        for i, ns in enumerate(namespaces):
 
-            @Entity()
+            @Entity(table=f"test_entity_{i}")
             @dataclass
             class TestEntity:
                 id: uuid.UUID = UUIDv5(namespace=ns)
 
             meta = get_entity_metadata(TestEntity)
             assert meta.get_primary_key().uuid_namespace == ns
-            clear_entity_registry()
 
 
 class TestAutoTimestampFields:
     """Test Field() with auto timestamp support"""
-
-    def setup_method(self):
-        self._saved_registry = get_all_entities()
-        clear_entity_registry()
-
-    def teardown_method(self):
-        """Restore entity registry after each test"""
-        clear_entity_registry()
-
-        _entity_registry.update(self._saved_registry)
 
     def test_update_on_create(self):
         """Test update_on_create for creation timestamp"""
@@ -552,16 +488,6 @@ class TestAutoTimestampFields:
 
 class TestEntityMetadataHelpers:
     """Test EntityMetadata helper methods"""
-
-    def setup_method(self):
-        self._saved_registry = get_all_entities()
-        clear_entity_registry()
-
-    def teardown_method(self):
-        """Restore entity registry after each test"""
-        clear_entity_registry()
-
-        _entity_registry.update(self._saved_registry)
 
     def test_get_primary_key(self):
         """Test get_primary_key() helper"""
@@ -656,16 +582,6 @@ class TestEntityMetadataHelpers:
 
 class TestComplexEntity:
     """Test complex entity with multiple field types and constraints"""
-
-    def setup_method(self):
-        self._saved_registry = get_all_entities()
-        clear_entity_registry()
-
-    def teardown_method(self):
-        """Restore entity registry after each test"""
-        clear_entity_registry()
-
-        _entity_registry.update(self._saved_registry)
 
     def test_complex_entity_all_features(self):
         """Test entity with all field types and features"""
