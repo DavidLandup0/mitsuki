@@ -54,9 +54,7 @@ run_benchmark() {
   echo "Running benchmark..."
   wrk -t4 -c100 -d60s http://0.0.0.0:8000 > "results/$result_file"
 
-  kill "$CURRENT_PID" 2>/dev/null || true
-  wait "$CURRENT_PID" 2>/dev/null || true
-  CURRENT_PID=""
+  lsof -t -i:8000 | xargs kill
   sleep 2
 }
 
@@ -86,9 +84,7 @@ run_spring_boot() {
   echo "Running benchmark..."
   wrk -t4 -c100 -d60s http://0.0.0.0:8000 > results/spring-local.txt
 
-  kill "$CURRENT_PID" 2>/dev/null || true
-  wait "$CURRENT_PID" 2>/dev/null || true
-  CURRENT_PID=""
+  lsof -t -i:8000 | xargs kill
   sleep 2
 }
 
@@ -107,6 +103,7 @@ benchmarks=(
   "django|django|python3 app.py|django-local.txt"
   "elysia|elysia|bun app.ts|elysia-local.txt"
   "express|express|node app.js|express-local.txt"
+  "gin|gin|go run app.go|gin-local.txt"
 )
 
 # ---------------------------

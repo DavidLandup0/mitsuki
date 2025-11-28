@@ -124,6 +124,7 @@ def process_results(results_dir, local=False):
         "elysia",
         "express",
         "spring",
+        "gin",
     ]
     results = []
     suffix = "-local" if local else ""

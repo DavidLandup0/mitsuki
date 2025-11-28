@@ -23,13 +23,14 @@ Docker tends to show different speeds than running on a raw host device, due to 
 
 | Framework | RPS | Stdev |
 | --- | --- | --- |
-| elysia | 10297.23 | 1190.0 |
-| mitsuki | 8813.18 | 739.34 |
-| spring | 7929.04 | 528.71 |
-| express | 4624.17 | 308.96 |
-| fastapi | 1476.74 | 78.42 |
-| django | 612.82 | 62.77 |
-| flask | 391.62 | 74.65 |
+| elysia | 12982.89 | 846.43 |
+| gin | 11014.0 | 466.89 |
+| mitsuki | 10002.7 | 641.97 |
+| spring | 8406.71 | 569.69 |
+| express | 4374.98 | 273.37 |
+| fastapi | 1681.09 | 79.55 |
+| django | 655.94 | 62.87 |
+| flask | 193.93 | 37.37 |
 
 ![Benchmark Results](results/benchmark_results.png)
 
@@ -39,13 +40,14 @@ Running locally, frameworks are unbound more strongly to utilize available resou
 
 | Framework | RPS | Stdev |
 | --- | --- | --- |
-| elysia | 101362.35 | 4590.0 |
-| spring | 49841.3 | 5720.0 |
-| express | 31002.29 | 679.62 |
-| mitsuki | 27091.45 | 648.47 |
-| fastapi | 6094.46 | 138.88 |
-| django | 1994.78 | 60.33 |
-| flask | 334.23 | 253.27 |
+| elysia | 97327.89 | 3100.0 |
+| gin | 96947.7 | 6690.0 |
+| spring | 50844.66 | 5940.0 |
+| express | 30504.05 | 1270.0 |
+| mitsuki | 27463.62 | 1530.0 |
+| fastapi | 5400.46 | 276.4 |
+| django | 2021.07 | 54.67 |
+| flask | 320.72 | 220.92 |
 
 ![Local Benchmark Results](results/local_benchmark_results.png)
 

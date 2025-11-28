@@ -76,3 +76,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+
+  gin:
+    build:
+      context: ./gin
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
