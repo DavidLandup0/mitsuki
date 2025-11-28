@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-11-29
+
+### Features
+- **Alembic Integration**: Added support for database migrations through Alembic
+  - `mitsuki init` now optionally generates Alembic configuration files
+  - Pre-configured `env.py` template with automatic entity discovery
+  - `get_sqlalchemy_metadata()` function for SQLAlchemy metadata access
+  - `convert_to_async_url()` helper for converting sync database URLs to async
+  - Support for profile-based configuration (MITSUKI_PROFILE environment variable) when running migrations
+
+### Documentation
+- Added database migrations guide (docs/19_database_migrations.md)
+- Added live demo example of Mitsuki starters
+
+### Improvements
+- Corrected template README.md file order
+
+[0.1.3]: https://github.com/DavidLandup0/mitsuki/releases/tag/v0.1.3
+
 ## [0.1.2] - 2025-11-28
 
 ### Features
@@ -14,13 +33,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Added VitePress for static-site documentation.
 - Updated the main README.md and benchmarks README.md files
 
+[0.1.2]: https://github.com/DavidLandup0/mitsuki/releases/tag/v0.1.2
+
 ## [0.1.1] - 2025-11-26
 
 ### Added
 - `orjson` as a dependency instead of standard `json` library for Mitsuki's JSON encoder
 - Monkey-patch for Starlette's `init_headers` function, for the common case of JSON responses with no headers
 
-[0.1.2]: https://github.com/DavidLandup0/mitsuki/releases/tag/v0.1.2
 [0.1.1]: https://github.com/DavidLandup0/mitsuki/releases/tag/v0.1.1
 
 ## [0.1.0] - 2025-11-20
