@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mitsuki"
-version = "0.1.1"
+version = "0.1.2"
 description = "Python web development framework. Mixing Python's productivity and flexibility with battle-hardened enterprise patterns."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -38,7 +38,6 @@ dependencies = [
     "colorama>=0.4.6",
     "croniter>=2.0.0",
     "pytz>=2021.1",
-    "tomli>=2.0.0",
     "orjson>=3.9.0"
 ]
 

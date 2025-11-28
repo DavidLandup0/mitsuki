@@ -104,8 +104,9 @@ def init():
 
     # Create project structure
     project_root = Path.cwd() / app_name
-    src_dir = project_root / "src"
-    app_dir = src_dir / app_name
+    package_dir = project_root / app_name
+    src_dir = package_dir / "src"
+    app_dir = src_dir
 
     if project_root.exists():
         click.echo(f"Error: Directory {app_name} already exists")
@@ -113,8 +114,8 @@ def init():
 
     # Create directories
     create_directory(project_root)
+    create_directory(package_dir)
     create_directory(src_dir)
-    create_directory(app_dir)
 
     subdirs = ["domain", "repository", "service", "controller"]
     init_content = read_template("__init__.py.tpl").replace(
@@ -134,7 +135,7 @@ def init():
         for domain_name in domains:
             domain_lower = domain_name.lower()
             imports.append(
-                f"from {app_name}.controller.{domain_lower}_controller import {domain_name}Controller"
+                f"from {app_name}.src.controller.{domain_lower}_controller import {domain_name}Controller"
             )
         controller_imports = "\n" + "\n".join(imports)
 
@@ -142,6 +143,10 @@ def init():
         "{{CONTROLLER_IMPORT}}", controller_imports
     )
     write_file(src_dir / "app.py", app_content)
+
+    # Create __init__.py files for package structure
+    write_file(package_dir / "__init__.py", "")
+    write_file(src_dir / "__init__.py", "")
 
     # Create domain files
     for domain_name in domains:
@@ -200,10 +205,12 @@ def init():
     gitignore = read_template("gitignore.tpl")
     write_file(project_root / ".gitignore", gitignore)
 
-    logger.info(f"\nSuccessfully created Mitsuki application: {app_name}")
-    logger.info("\nTo get started:")
-    logger.info(f"  cd {app_name}")
-    logger.info("  MITSUKI_PROFILE=development python src/app.py")
+    click.echo(f"\nSuccessfully created Mitsuki application: {app_name}")
+    click.echo("\nTo get started:")
+    click.echo(f"  cd {app_name}")
+    click.echo(f"  python3 -m {app_name}.src.app")
+    click.echo("\nOr with a specific profile:")
+    click.echo(f"  MITSUKI_PROFILE=development python3 -m {app_name}.src.app")
 
 
 def main():

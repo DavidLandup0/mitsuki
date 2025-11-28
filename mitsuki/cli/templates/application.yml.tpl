@@ -31,5 +31,5 @@ logging:
   sqlalchemy: false
 
 app:
-  name: {{APP_NAME}}
+  name: {{app_name}}
   debug: false

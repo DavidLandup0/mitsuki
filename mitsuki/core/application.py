@@ -17,7 +17,6 @@ from mitsuki.core.server import (
 )
 from mitsuki.data import initialize_database
 from mitsuki.openapi import register_openapi_endpoints
-from mitsuki.version import get_version
 from mitsuki.web.controllers import get_all_controllers
 
 
@@ -137,7 +136,9 @@ class ApplicationContext:
 
         config = get_config()
         logger = get_logger()
-        version = get_version()
+
+        # To avoid circular imports
+        from mitsuki import __version__
 
         logger.info("")
         logger.info("    ♡ ｡ ₊°༺❤︎༻°₊ ｡ ♡")
@@ -148,7 +149,7 @@ class ApplicationContext:
         logger.info("/_/ /_/ /_/_/\\__/____/\\__,_/_/|_/_/")
         logger.info("    °❀˖ ° °❀⋆.ೃ࿔*:･  ° ❀˖°")
         logger.info("")
-        logger.info(f":: Mitsuki ::                (v{version})")
+        logger.info(f":: Mitsuki ::                (v{__version__})")
         logger.info("")
 
         # Log configuration sources if enabled

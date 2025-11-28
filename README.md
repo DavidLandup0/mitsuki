@@ -138,7 +138,7 @@ python src/app.py
 
 And hit the docs on `http://127.0.0.1:8000/docs`:
 
-![](./doc_assets/mitsuki_init.png)
+![](./docs/public/doc_assets/mitsuki_init.png)
 
 
 ## Why Mitsuki?

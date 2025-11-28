@@ -38,18 +38,19 @@ The CLI generates the following structure:
 
 ```
 my_app/
-  src/
-    my_app/
+  my_app/
+    src/
+      controller/       # @RestController classes
       domain/           # @Entity classes
       repository/       # @CrudRepository classes
       service/          # @Service classes
-      controller/       # @RestController classes
+      app.py            # Application entry point
       __init__.py
-    app.py             # Application entry point
-  application.yml      # Base configuration
-  application-dev.yml  # Development configuration
-  application-stg.yml  # Staging configuration
-  application-prod.yml # Production configuration
+    __init__.py
+  application.yml       # Base configuration
+  application-dev.yml   # Development configuration
+  application-stg.yml   # Staging configuration
+  application-prod.yml  # Production configuration
   .gitignore
   README.md
 ```
@@ -69,8 +70,7 @@ Successfully created Mitsuki application: blog_api
 
 To get started:
   cd blog_api
-  pip install mitsuki
-  MITSUKI_PROFILE=development python src/app.py
+  python3 -m blog_api.src.app
 ```
 
 ### Application with Domain
@@ -91,7 +91,7 @@ Successfully created Mitsuki application: blog_api
 
 This generates a complete CRUD application with:
 
-**Post Entity** (`src/blog_api/domain/post.py`):
+**Post Entity** (`blog_api/src/domain/post.py`):
 
 ```python
 import uuid
@@ -107,7 +107,7 @@ class Post:
     updated_at: datetime = Field(update_on_save=True)
 ```
 
-**Post Repository** (`src/blog_api/repository/post_repository.py`):
+**Post Repository** (`blog_api/src/repository/post_repository.py`):
 
 ```python
 from mitsuki import CrudRepository
@@ -119,7 +119,7 @@ class PostRepository:
     pass
 ```
 
-**Post Service** (`src/blog_api/service/post_service.py`):
+**Post Service** (`blog_api/src/service/post_service.py`):
 
 ```python
 import uuid
@@ -156,7 +156,7 @@ class PostService:
         return await self.repo.delete_by_id(id)
 ```
 
-**Post Controller** (`src/blog_api/controller/post_controller.py`):
+**Post Controller** (`blog_api/src/controller/post_controller.py`):
 
 ```python
 import uuid
@@ -262,14 +262,17 @@ After creating your application:
 ```bash
 cd my_app
 
+# Run with default profile
+python3 -m my_app.src.app
+
 # Development mode
-MITSUKI_PROFILE=development python src/app.py
+MITSUKI_PROFILE=development python3 -m my_app.src.app
 
 # Staging mode
-MITSUKI_PROFILE=staging python src/app.py
+MITSUKI_PROFILE=staging python3 -m my_app.src.app
 
 # Production mode
-MITSUKI_PROFILE=production python src/app.py
+MITSUKI_PROFILE=production python3 -m my_app.src.app
 ```
 
 The server will start on http://127.0.0.1:8000 by default.
