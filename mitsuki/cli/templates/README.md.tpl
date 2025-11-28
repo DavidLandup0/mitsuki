@@ -14,8 +14,8 @@ The server will start on http://127.0.0.1:8000
 ## Project Structure
 
 ```
-src/
-  {{app_name}}/
+{{app_name}}/
+  src/
     domain/        # @Entity classes
     repository/    # @CrudRepository classes
     service/       # @Service classes
