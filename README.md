@@ -95,19 +95,18 @@ This will guide you through creating a new project with a clean structure and wi
 ```
 my_app/
   src/
-    my_app/
-      domain/           # @Entity classes
-      repository/       # @CrudRepository classes
-      service/          # @Service classes
-      controller/       # @RestController classes
-      __init__.py
+    domain/           # @Entity classes
+    repository/       # @CrudRepository classes
+    service/          # @Service classes
+    controller/       # @RestController classes
+    __init__.py
     app.py             # Application entry point
-  application.yml      # Base configuration
-  application-dev.yml  # Development configuration
-  application-stg.yml  # Staging configuration
-  application-prod.yml # Production configuration
-  .gitignore
-  README.md
+application.yml      # Base configuration
+application-dev.yml  # Development configuration
+application-stg.yml  # Staging configuration
+application-prod.yml # Production configuration
+.gitignore
+README.md
 ```
 
 Start it:
@@ -126,7 +125,7 @@ python src/app.py
 2025-11-20 02:04:45,960 - mitsuki - INFO     - /_/ /_/ /_/_/\__/____/\__,_/_/|_/_/
 2025-11-20 02:04:45,960 - mitsuki - INFO     -     °❀˖ ° °❀⋆.ೃ࿔*:･  ° ❀˖°
 2025-11-20 02:04:45,960 - mitsuki - INFO     - 
-2025-11-20 02:04:45,960 - mitsuki - INFO     - :: Mitsuki ::                (0.1.0)
+2025-11-20 02:04:45,960 - mitsuki - INFO     - :: Mitsuki ::                (0.1.2)
 2025-11-20 02:04:45,960 - mitsuki - INFO     - 
 2025-11-20 02:04:45,960 - mitsuki - INFO     - Mitsuki application starting on http://127.0.0.1:8000
 2025-11-20 02:04:45,961 - _granian - INFO     - Starting granian (main PID: 19002)
@@ -139,6 +138,20 @@ python src/app.py
 And hit the docs on `http://127.0.0.1:8000/docs`:
 
 ![](./docs/public/doc_assets/mitsuki_init.png)
+
+## Bootstrapping Projects in a Minute - from Zero to Functional Starter
+
+Okay, let's go beyond "Hello World" - how long does it take to go from zero to something more functional? Something with a database connection, a domain object, a repository with CRUD capabilities, service and controller?
+
+About a single minute.
+
+Here's a live example, of starting a Mitsuki project, which includes:
+
+- Project setup
+- Domain object
+- Entity controller, service and repository with functional CRUD
+
+![](./docs/public/doc_assets/mitsuki_starter.gif)
 
 
 ## Why Mitsuki?
