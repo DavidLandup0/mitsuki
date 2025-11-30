@@ -83,3 +83,11 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+
+  robyn:
+    build:
+      context: ./robyn
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+

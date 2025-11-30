@@ -16,7 +16,7 @@ wait_for_service() {
 mkdir -p results
 
 # Define services and their ports
-services=("mitsuki-granian" "mitsuki-uvicorn" "fastapi" "starlette-uvicorn" "starlette-granian" "flask" "django" "elysia" "spring" "express" "gin" "mitsuki-socketify" )
+services=("mitsuki-granian" "mitsuki-uvicorn" "fastapi" "starlette-uvicorn" "starlette-granian" "flask" "django" "elysia" "spring" "express" "gin" "mitsuki-socketify" "robyn")
 
 # Run benchmarks for each service in isolation
 for i in ${!services[@]}; do

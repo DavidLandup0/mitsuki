@@ -24,11 +24,12 @@ Docker tends to show different speeds than running on a raw host device, due to 
 | Framework | RPS | Stdev |
 | --- | --- | --- |
 | elysia | 12982.89 | 846.43 |
+| mitsuki | 11643.86 | 516.84 |
 | gin | 11014.0 | 466.89 |
-| mitsuki | 10002.7 | 641.97 |
+| robyn | 8764.48 | 418.81 |
 | spring | 8406.71 | 569.69 |
 | express | 4374.98 | 273.37 |
-| fastapi | 1681.09 | 79.55 |
+| fastapi | 1745.22 | 65.59 |
 | django | 655.94 | 62.87 |
 | flask | 193.93 | 37.37 |
 
