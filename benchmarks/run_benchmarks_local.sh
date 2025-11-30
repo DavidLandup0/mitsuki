@@ -104,6 +104,7 @@ benchmarks=(
   "elysia|elysia|bun app.ts|elysia-local.txt"
   "express|express|node app.js|express-local.txt"
   "gin|gin|go run app.go|gin-local.txt"
+  "robyn|robyn|python3 app.py --log-level=WARN|robyn-local.txt"
 )
 
 # ---------------------------

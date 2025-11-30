@@ -46,6 +46,7 @@ Running locally, frameworks are unbound more strongly to utilize available resou
 | spring | 50844.66 | 5940.0 |
 | express | 30504.05 | 1270.0 |
 | mitsuki | 27463.62 | 1530.0 |
+| robyn | 14815.5 | 167.04 |
 | fastapi | 5400.46 | 276.4 |
 | django | 2021.07 | 54.67 |
 | flask | 320.72 | 220.92 |
