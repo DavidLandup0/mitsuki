@@ -37,7 +37,7 @@ Docker tends to show different speeds than running on a raw host device, due to 
 
 ### Local Results
 
-Running locally, frameworks are unbound more strongly to utilize available resources, but the benchmarks and ordinality will depend more strongly on the specific device you're running on.
+Running locally, frameworks are unbound more strongly to utilize available resources, don't have networking overhead, etc., but the benchmarks and ordinality will depend more strongly on the specific device you're running on.
 
 | Framework | RPS | Stdev |
 | --- | --- | --- |
@@ -52,6 +52,10 @@ Running locally, frameworks are unbound more strongly to utilize available resou
 | flask | 320.72 | 220.92 |
 
 ![Local Benchmark Results](results/local_benchmark_results.png)
+
+P.S. Something to inspect later is a more detailed profile of these, as Elysia, Gin, Spring and Express gain a significant upper hand ordinally. Perhaps in the Docker benchmark, the bottleneck is the networking layer, so they never get to max out their RPS? 
+
+Even so - you'll be serving any of these through Docker on a consumer-grade device anyways, so the benchmark above is closer to your out-of-the-box experience in a real-world setting.
 
 
 ## Reproduction Criteria
