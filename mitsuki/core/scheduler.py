@@ -7,6 +7,7 @@ import pytz
 from croniter import croniter
 
 from mitsuki.core.logging import get_logger
+from mitsuki.core.metrics_core import MetricsRegistry
 
 logger = get_logger()
 
@@ -80,6 +81,20 @@ class TaskScheduler:
         self.running = False
         self._registered_count = 0
         self._statistics: Dict[str, TaskStatistics] = {}
+        self._metrics = MetricsRegistry.get_instance()
+
+        # Initialize scheduler metrics
+        self._metrics.counter(
+            "scheduler_task_executions_total",
+            "Total number of scheduled task executions",
+        )
+        self._metrics.histogram(
+            "scheduler_task_duration_seconds",
+            "Scheduled task execution duration in seconds",
+        )
+        self._metrics.gauge(
+            "scheduler_tasks_running", "Number of currently running scheduled tasks"
+        )
 
     def register_scheduled_method(
         self, instance: Any, method: Callable, config: Dict
@@ -139,6 +154,7 @@ class TaskScheduler:
                 f"Starting scheduled task {method_name} (every {interval_ms}ms)"
             )
             stats.status = "running"
+            self._metrics.gauge("scheduler_tasks_running").inc({"task": method_name})
 
             while self.running:
                 iteration_start_time = asyncio.get_event_loop().time()
@@ -153,15 +169,27 @@ class TaskScheduler:
                         await asyncio.get_event_loop().run_in_executor(None, method)
 
                     # Track successful execution
-                    duration_ms = (
+                    duration_sec = (
                         asyncio.get_event_loop().time() - execution_start_time
-                    ) * 1000
+                    )
+                    duration_ms = duration_sec * 1000
+
                     stats.executions += 1
                     stats.last_execution = datetime.now()
                     stats.last_duration_ms = duration_ms
                     stats.total_duration_ms += duration_ms
+
+                    self._metrics.counter("scheduler_task_executions_total").inc(
+                        {"task": method_name, "status": "success"}
+                    )
+                    self._metrics.histogram("scheduler_task_duration_seconds").observe(
+                        duration_sec, {"task": method_name}
+                    )
                 except Exception as e:
                     stats.failures += 1
+                    self._metrics.counter("scheduler_task_executions_total").inc(
+                        {"task": method_name, "status": "failure"}
+                    )
                     logger.error(
                         f"Scheduled task {method_name} failed with error: {e}",
                         exc_info=True,
@@ -206,25 +234,35 @@ class TaskScheduler:
                 f"Starting scheduled task {method_name} ({delay_ms}ms after completion)"
             )
             stats.status = "running"
+            self._metrics.gauge("scheduler_tasks_running").inc({"task": method_name})
 
             while self.running:
                 start_time = asyncio.get_event_loop().time()
                 try:
-                    # Call the method (it's already bound to the instance)
                     if inspect.iscoroutinefunction(method):
                         await method()
                     else:
-                        # Support sync methods by running in executor
                         await asyncio.get_event_loop().run_in_executor(None, method)
 
-                    # Track successful execution
-                    duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+                    duration_sec = asyncio.get_event_loop().time() - start_time
+                    duration_ms = duration_sec * 1000
+
                     stats.executions += 1
                     stats.last_execution = datetime.now()
                     stats.last_duration_ms = duration_ms
                     stats.total_duration_ms += duration_ms
+
+                    self._metrics.counter("scheduler_task_executions_total").inc(
+                        {"task": method_name, "status": "success"}
+                    )
+                    self._metrics.histogram("scheduler_task_duration_seconds").observe(
+                        duration_sec, {"task": method_name}
+                    )
                 except Exception as e:
                     stats.failures += 1
+                    self._metrics.counter("scheduler_task_executions_total").inc(
+                        {"task": method_name, "status": "failure"}
+                    )
                     logger.error(
                         f"Scheduled task {method_name} failed with error: {e}",
                         exc_info=True,
@@ -269,48 +307,52 @@ class TaskScheduler:
                 f"Starting scheduled task {method_name} (cron: {cron_expr}{tz_info})"
             )
             stats.status = "running"
+            self._metrics.gauge("scheduler_tasks_running").inc({"task": method_name})
 
             while self.running:
                 try:
-                    # Get next execution time
                     next_run = cron.get_next(datetime)
 
-                    # Get current time in same timezone
                     if timezone_str:
                         tz = pytz.timezone(timezone_str)
                         now = datetime.now(tz)
                     else:
                         now = datetime.now()
 
-                    # Calculate sleep time
                     sleep_seconds = (next_run - now).total_seconds()
 
                     if sleep_seconds > 0:
-                        # Sleep until next execution
                         await asyncio.sleep(sleep_seconds)
 
-                        # Check if still running after sleep
                         if not self.running:
                             break
 
-                        # Execute the task
                         start_time = asyncio.get_event_loop().time()
                         if inspect.iscoroutinefunction(method):
                             await method()
                         else:
                             await asyncio.get_event_loop().run_in_executor(None, method)
 
-                        # Track successful execution
-                        duration_ms = (
-                            asyncio.get_event_loop().time() - start_time
-                        ) * 1000
+                        duration_sec = asyncio.get_event_loop().time() - start_time
+                        duration_ms = duration_sec * 1000
+
                         stats.executions += 1
                         stats.last_execution = datetime.now()
                         stats.last_duration_ms = duration_ms
                         stats.total_duration_ms += duration_ms
 
+                        self._metrics.counter("scheduler_task_executions_total").inc(
+                            {"task": method_name, "status": "success"}
+                        )
+                        self._metrics.histogram(
+                            "scheduler_task_duration_seconds"
+                        ).observe(duration_sec, {"task": method_name})
+
                 except Exception as e:
                     stats.failures += 1
+                    self._metrics.counter("scheduler_task_executions_total").inc(
+                        {"task": method_name, "status": "failure"}
+                    )
                     logger.error(
                         f"Scheduled task {method_name} failed with error: {e}",
                         exc_info=True,

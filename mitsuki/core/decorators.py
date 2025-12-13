@@ -5,6 +5,23 @@ from mitsuki.core.container import get_container
 from mitsuki.core.enums import Scope
 
 
+def _maybe_auto_instrument(cls: Type):
+    """Auto-instrument component if application has @Instrumented decorator."""
+    # Check if component already has explicit @Instrumented
+    if hasattr(cls, "_instrumented_decorator_applied"):
+        return
+
+    # Check if we have an application class with @Instrumented
+    from mitsuki.core.application import _application_class
+
+    if _application_class and hasattr(_application_class, "_instrument_all_components"):
+        if getattr(_application_class, "_instrument_all_components", False):
+            # Apply instrumentation
+            from mitsuki.core.instrumentation import _apply_instrumentation
+
+            _apply_instrumentation(cls)
+
+
 def Scheduled(
     fixed_rate: Optional[int] = None,
     fixed_delay: Optional[int] = None,
@@ -98,6 +115,9 @@ def Service(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGLET
         cls.__mitsuki_name__ = name or cls.__name__
         cls.__mitsuki_scope__ = scope
 
+        # Auto-instrument if application has @Instrumented
+        _maybe_auto_instrument(cls)
+
         return cls
 
     return decorator
@@ -121,6 +141,9 @@ def Repository(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SING
         cls.__mitsuki_repository__ = True
         cls.__mitsuki_name__ = name or cls.__name__
         cls.__mitsuki_scope__ = scope
+
+        # Auto-instrument if application has @Instrumented
+        _maybe_auto_instrument(cls)
 
         return cls
 

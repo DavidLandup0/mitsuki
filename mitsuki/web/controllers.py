@@ -24,6 +24,11 @@ def RestController(path: str = ""):
         cls.__mitsuki_name__ = cls.__name__
         cls.__mitsuki_scope__ = Scope.SINGLETON
 
+        # Auto-instrument if application has @Instrumented
+        from mitsuki.core.decorators import _maybe_auto_instrument
+
+        _maybe_auto_instrument(cls)
+
         return cls
 
     return decorator

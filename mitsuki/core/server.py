@@ -68,22 +68,44 @@ class MitsukiASGIApp:
     async def _lifespan(self, app):
         """Lifespan context manager for startup/shutdown."""
 
-        # Note: Container is already populated when decorators run during module import.
-        # Thus, it's not being managed here - it's a pre-lifespan component.
-
         # Scan and register scheduled tasks
-        # These are registered as tasks, not components, hence
-        # not in the container at startup.
         self.context._scan_scheduled_tasks()
 
         scheduler = get_scheduler()
         await scheduler.start()
 
+        # Start instrumentation background tasks if enabled
+        config = get_config()
+        if config.get_bool("instrumentation.enabled"):
+            from mitsuki.core.instrumentation import MetricsRegistry
+
+            registry = await MetricsRegistry.get_instance()
+            if registry.enabled and not registry._background_task:
+                try:
+                    import asyncio
+
+                    registry._background_task = asyncio.create_task(
+                        registry._collect_system_metrics()
+                    )
+                except Exception:
+                    pass
+
         yield
 
         # Shutdown
-        # Stop scheduler
         await scheduler.stop()
+
+        # Stop instrumentation background tasks
+        if config.get_bool("instrumentation.enabled"):
+            from mitsuki.core.instrumentation import MetricsRegistry
+
+            registry = await MetricsRegistry.get_instance()
+            if registry._background_task:
+                registry._background_task.cancel()
+                try:
+                    await registry._background_task
+                except:
+                    pass
 
         # Disconnect database
         try:
@@ -91,14 +113,18 @@ class MitsukiASGIApp:
             await adapter.disconnect()
             logging.info("Database disconnected")
         except (RuntimeError, DataException):
-            # Database not initialized - this is fine
-            # TODO: Add message for if adapter.disconnect()
-            # throws an exception.
             pass
 
     def _build_middleware(self) -> List[Middleware]:
         """Build middleware stack."""
         middleware = []
+
+        # Instrumentation middleware (must be first to track all requests)
+        config = get_config()
+        if config.get_bool("instrumentation.enabled"):
+            from mitsuki.core.instrumentation import InstrumentationMiddleware
+
+            middleware.append(Middleware(InstrumentationMiddleware))
 
         # CORS middleware
         if self.cors_enabled:

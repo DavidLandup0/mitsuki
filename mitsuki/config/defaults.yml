@@ -25,9 +25,15 @@ logging:
 
 scheduler:
   enabled: false
-  metrics:
-    enabled: false
-    path: /metrics
+
+metrics:
+  enabled: false
+  path: /metrics  # Mitsuki format at /metrics, Prometheus at /metrics/prometheus
+  allowed_ips: []  # Empty list = allow all. Example: ["127.0.0.1", "10.0.0.0/8"]
+
+instrumentation:
+  enabled: false
+  track_memory: false
 
 openapi:
   enabled: true
