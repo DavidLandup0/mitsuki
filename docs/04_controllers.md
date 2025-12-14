@@ -379,6 +379,45 @@ async def update_user(self, id: str, body: UpdateUserRequest = RequestBody()) ->
     return {"success": True, "user": self._to_dict(updated)}
 ```
 
+### Accessing the Raw Request
+
+For use cases where you need direct access to the underlying request object (e.g., to read headers, access client information, or handle cookies), you can inject Starlette's `Request` object by simply adding it as a type-hinted parameter to your handler method.
+
+This gives you control of the underlying `starlette.requests.Request` object:
+
+```python
+from mitsuki import RestController, GetMapping
+from starlette.requests import Request
+
+@RestController("/api/gateway")
+class GatewayController:
+    @GetMapping("/info")
+    async def get_request_info(self, request: Request) -> dict:
+        """
+        Injects the Starlette Request object to access headers and client info.
+        """
+        return {
+            "user_agent": request.headers.get("User-Agent", "Unknown"),
+            "client_host": request.client.host,
+            "client_port": request.client.port,
+            "cookies": request.cookies,
+            "path": request.url.path,
+        }
+```
+
+This naturally works with other parameters like path variables, query parameters, and request bodies.
+
+```python
+@GetMapping("/users/{user_id}")
+async def get_user_with_request(
+    self,
+    request: Request,
+    user_id: int,
+    q: str = QueryParam(default=None)
+) -> dict:
+    # You have access to the request, user_id, and q
+    pass
+```
 
 ## Response Handling
 
