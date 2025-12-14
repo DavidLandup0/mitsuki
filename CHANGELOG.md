@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2025-12-14
+
+### Features
+- **Request Injection**: Added the ability to inject the raw Starlette `Request` object directly into controller methods by type-hinting it.
+
+### Documentation
+- Updated the controllers documentation to include a section on accessing the raw request object.
+
+### Improvements
+- **Benchmarks**: Added Robyn and Gin (Go) to the benchmark suite for more comprehensive performance comparisons.
+
+[0.1.4]: https://github.com/DavidLandup0/mitsuki/compare/v0.1.3...v0.1.4
 ## [0.1.3] - 2025-11-29
 
 ### Features
