@@ -38,6 +38,9 @@ class DIContainer:
         self._resolving = threading.local()  # Thread-local circular dependency tracking
         self._lock = threading.RLock()  # Reentrant lock for nested get() calls
 
+        # Register framework infrastructure
+        self._register_infrastructure()
+
     def register(
         self,
         cls: Type,
@@ -189,6 +192,16 @@ class DIContainer:
         self._components.clear()
         self._components_by_name.clear()
         self._resolving.clear()
+
+    def _register_infrastructure(self):
+        """Register core framework services."""
+        from mitsuki.core.instrumentation import InstrumentationRegistry
+        from mitsuki.core.metrics_core import MetricsStorage
+        from mitsuki.core.scheduler import TaskScheduler
+
+        self.register(MetricsStorage)
+        self.register(TaskScheduler)
+        self.register(InstrumentationRegistry)
 
 
 # Global container instance

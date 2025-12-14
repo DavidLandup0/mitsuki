@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Type
 from mitsuki.config.properties import get_config, log_config_sources
 from mitsuki.core.container import get_container
 from mitsuki.core.enums import Scope, ServerType
-from mitsuki.core.instrumentation import MetricsRegistry
+from mitsuki.core.instrumentation import InstrumentationRegistry
 from mitsuki.core.logging import configure_logging, get_logger
 from mitsuki.core.metrics import create_metrics_endpoint
 from mitsuki.core.providers import initialize_configuration_providers
@@ -165,7 +165,7 @@ class ApplicationContext:
         logger.info(f"Mitsuki application starting on http://{host}:{port}")
 
         if config.get_bool("instrumentation.enabled"):
-            registry = MetricsRegistry.get_instance_sync()
+            registry = get_container().get(InstrumentationRegistry)
             track_memory = config.get_bool("instrumentation.track_memory")
             registry.enable(track_memory=track_memory)
 
@@ -235,9 +235,9 @@ def Application(
                 # Initialize instrumentation if enabled
                 config = get_config()
                 if config.get_bool("instrumentation.enabled"):
-                    from mitsuki.core.instrumentation import MetricsRegistry
+                    from mitsuki.core.instrumentation import InstrumentationRegistry
 
-                    registry = MetricsRegistry.get_instance_sync()
+                    registry = get_container().get(InstrumentationRegistry)
                     track_memory = config.get_bool("instrumentation.track_memory")
                     registry.enable(track_memory=track_memory)
 

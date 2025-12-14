@@ -1,16 +1,18 @@
-from typing import Dict, Optional
+import ipaddress
 
+from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
-from mitsuki.core.metrics_core import MetricsRegistry as CoreMetricsRegistry
+from mitsuki.core.metrics_core import MetricsStorage
 from mitsuki.core.metrics_formatters import format_mitsuki, format_prometheus
 from mitsuki.web.controllers import RestController
 from mitsuki.web.mappings import GetMapping
+from mitsuki.web.response import ResponseEntity
 
 
 def create_metrics_endpoint(config):
     """
-    Create unified metrics endpoint based on configuration.
+    Create metrics endpoint based on configuration.
 
     Exposes:
     - /metrics - Mitsuki format (nested JSON)
@@ -30,53 +32,41 @@ def create_metrics_endpoint(config):
 
     @RestController()
     class MetricsController:
-        """REST controller for application metrics."""
+        def __init__(self, metrics_storage: MetricsStorage):
+            self._core_registry = metrics_storage
 
-        def __init__(self):
-            self._core_registry = CoreMetricsRegistry.get_instance()
-
-        def _check_ip_allowed(self, request) -> Optional[Dict]:
-            """Check if request IP is allowed. Returns error dict if not allowed, None if allowed."""
+        def _check_ip_allowed(self, request: Request) -> bool:
+            """Check if request IP is allowed."""
             if not allowed_ips:
-                return None
+                return True
 
-            client_ip = self._get_client_ip(request)
-            if client_ip not in allowed_ips:
-                return {
-                    "error": "Access denied",
-                    "message": "Your IP address is not authorized to access metrics",
-                }
-            return None
+            client_ip = request.client.host
+            client_addr = ipaddress.ip_address(client_ip)
 
-        def _get_client_ip(self, request) -> str:
-            """Extract client IP from request."""
-            if hasattr(request, "client") and request.client:
-                return request.client.host
-            return "unknown"
+            for allowed in allowed_ips:
+                if "/" in allowed:
+                    network = ipaddress.ip_network(allowed, strict=False)
+                    if client_addr in network:
+                        return True
+                else:
+                    if client_ip == allowed:
+                        return True
+
+            return False
 
         @GetMapping(metrics_path)
-        async def get_metrics(self, request) -> Dict:
-            """
-            Get all application metrics in Mitsuki format.
-
-            Returns nested JSON with computed aggregations.
-            """
-            ip_error = self._check_ip_allowed(request)
-            if ip_error:
-                return ip_error
+        async def get_metrics(self, request: Request):
+            """Get all application metrics in Mitsuki format."""
+            if not self._check_ip_allowed(request):
+                return ResponseEntity.not_found({"error": "Not found"})
 
             return format_mitsuki(self._core_registry)
 
         @GetMapping(f"{metrics_path}/prometheus")
-        async def get_prometheus_metrics(self, request):
-            """
-            Get all application metrics in Prometheus format.
-
-            Returns text format compatible with Prometheus/Grafana scraping.
-            """
-            ip_error = self._check_ip_allowed(request)
-            if ip_error:
-                return ip_error
+        async def get_prometheus_metrics(self, request: Request):
+            """Get all application metrics in Prometheus format."""
+            if not self._check_ip_allowed(request):
+                return ResponseEntity.not_found({"error": "Not found"})
 
             content = format_prometheus(self._core_registry)
             return PlainTextResponse(content, media_type="text/plain; version=0.0.4")

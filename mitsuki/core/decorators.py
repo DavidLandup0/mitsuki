@@ -6,20 +6,13 @@ from mitsuki.core.enums import Scope
 
 
 def _maybe_auto_instrument(cls: Type):
-    """Auto-instrument component if application has @Instrumented decorator."""
-    # Check if component already has explicit @Instrumented
-    if hasattr(cls, "_instrumented_decorator_applied"):
+    """Auto-instrument component if not already instrumented."""
+    if "_instrumented_decorator_applied" in cls.__dict__:
         return
 
-    # Check if we have an application class with @Instrumented
-    from mitsuki.core.application import _application_class
+    from mitsuki.core.instrumentation import _apply_instrumentation
 
-    if _application_class and hasattr(_application_class, "_instrument_all_components"):
-        if getattr(_application_class, "_instrument_all_components", False):
-            # Apply instrumentation
-            from mitsuki.core.instrumentation import _apply_instrumentation
-
-            _apply_instrumentation(cls)
+    _apply_instrumentation(cls)
 
 
 def Scheduled(

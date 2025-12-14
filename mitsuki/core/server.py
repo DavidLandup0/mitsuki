@@ -10,6 +10,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 from mitsuki.config.properties import get_config
+from mitsuki.core.container import get_container
 from mitsuki.core.logging import get_granian_log_config
 from mitsuki.core.scheduler import get_scheduler
 from mitsuki.data.repository import get_database_adapter
@@ -77,9 +78,9 @@ class MitsukiASGIApp:
         # Start instrumentation background tasks if enabled
         config = get_config()
         if config.get_bool("instrumentation.enabled"):
-            from mitsuki.core.instrumentation import MetricsRegistry
+            from mitsuki.core.instrumentation import InstrumentationRegistry
 
-            registry = await MetricsRegistry.get_instance()
+            registry = get_container().get(InstrumentationRegistry)
             if registry.enabled and not registry._background_task:
                 try:
                     import asyncio
@@ -97,9 +98,9 @@ class MitsukiASGIApp:
 
         # Stop instrumentation background tasks
         if config.get_bool("instrumentation.enabled"):
-            from mitsuki.core.instrumentation import MetricsRegistry
+            from mitsuki.core.instrumentation import InstrumentationRegistry
 
-            registry = await MetricsRegistry.get_instance()
+            registry = get_container().get(InstrumentationRegistry)
             if registry._background_task:
                 registry._background_task.cancel()
                 try:
@@ -122,9 +123,13 @@ class MitsukiASGIApp:
         # Instrumentation middleware (must be first to track all requests)
         config = get_config()
         if config.get_bool("instrumentation.enabled"):
-            from mitsuki.core.instrumentation import InstrumentationMiddleware
+            from mitsuki.core.instrumentation import (
+                InstrumentationMiddleware,
+                InstrumentationRegistry,
+            )
 
-            middleware.append(Middleware(InstrumentationMiddleware))
+            registry = get_container().get(InstrumentationRegistry)
+            middleware.append(Middleware(InstrumentationMiddleware, registry=registry))
 
         # CORS middleware
         if self.cors_enabled:

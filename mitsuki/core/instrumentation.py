@@ -1,16 +1,5 @@
-"""
-Instrumentation and metrics collection for Mitsuki components.
-
-Provides decorators and utilities for tracking:
-- Request/response metrics (latency, throughput, status codes)
-- Memory usage (heap, RSS)
-- CPU usage
-- Component-level performance
-"""
-
 import asyncio
 import functools
-import threading
 import time
 import tracemalloc
 from datetime import datetime
@@ -18,44 +7,24 @@ from typing import Callable, Optional
 
 import psutil
 
-from mitsuki.core.decorators import Provider
-from mitsuki.core.metrics_core import MetricsRegistry as CoreMetricsRegistry
+from mitsuki.core.container import get_container
+from mitsuki.core.decorators import Component
+from mitsuki.core.metrics_core import MetricsStorage
 
 
-class MetricsRegistry:
+class InstrumentationRegistry:
     """
     Instrumentation registry that uses core metrics.
     Thread-safe singleton for collecting and exposing metrics.
     """
 
-    _instance: Optional["MetricsRegistry"] = None
-    _lock = threading.Lock()
-
-    def __init__(self):
+    def __init__(self, metrics_storage: MetricsStorage):
         self.enabled: bool = False
         self.start_time: datetime = datetime.utcnow()
         self._track_memory = False
-        self._core = CoreMetricsRegistry.get_instance()
+        self._core = metrics_storage
         self.process = psutil.Process()
         self._background_task: Optional[asyncio.Task] = None
-
-    @classmethod
-    async def get_instance(cls) -> "MetricsRegistry":
-        """Get or create singleton instance."""
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = cls()
-        return cls._instance
-
-    @classmethod
-    def get_instance_sync(cls) -> "MetricsRegistry":
-        """Get singleton instance synchronously (for decorators)."""
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = cls()
-        return cls._instance
 
     def enable(self, track_memory: bool = True):
         """Enable metrics collection."""
@@ -174,16 +143,13 @@ def Instrumented(enabled: bool = True):
     """
 
     def decorator(cls):
-        # Store instrumentation config on the class
-        cls._instrumented = enabled
-        cls._instrumented_decorator_applied = True
+        cls._instrumented_decorator_applied = enabled
 
         if not enabled:
             return cls
 
         # Check if this is an @Application class
-        if hasattr(cls, "__mitsuki_application__"):
-            # Mark for global instrumentation
+        if cls.__dict__.get("__mitsuki_application__"):
             cls._instrument_all_components = True
             return cls
 
@@ -197,7 +163,6 @@ def Instrumented(enabled: bool = True):
 
 def _apply_instrumentation(cls):
     """Apply instrumentation to a component class."""
-
     component_name = cls.__name__
 
     for attr_name in dir(cls):
@@ -208,89 +173,53 @@ def _apply_instrumentation(cls):
         if not callable(attr):
             continue
 
-        if asyncio.iscoroutinefunction(attr):
-            setattr(cls, attr_name, _wrap_async_method(component_name, attr))
-        else:
-            setattr(cls, attr_name, _wrap_sync_method(component_name, attr))
+        setattr(cls, attr_name, _instrument_function(component_name, attr))
 
 
-def should_instrument_component(component_cls, app_class=None) -> bool:
-    """
-    Check if a component should be instrumented.
+def _instrument_function(component_name: str, method: Callable):
+    """Wrap a method with instrumentation."""
+    # Get registry once at decoration time
+    registry = get_container().get(InstrumentationRegistry)
 
-    Returns True if:
-    - Component has @Instrumented decorator with enabled=True, OR
-    - Application has @Instrumented decorator and component doesn't explicitly disable it
-    """
-    # Check if component explicitly has @Instrumented
-    if hasattr(component_cls, "_instrumented_decorator_applied"):
-        return getattr(component_cls, "_instrumented", False)
+    if asyncio.iscoroutinefunction(method):
 
-    # Check if application has global instrumentation enabled
-    if app_class and hasattr(app_class, "_instrument_all_components"):
-        return getattr(app_class, "_instrument_all_components", False)
+        @functools.wraps(method)
+        async def async_wrapper(*args, **kwargs):
+            if not registry.enabled:
+                return await method(*args, **kwargs)
 
-    return False
+            start_time = time.perf_counter()
+            error_occurred = False
+            try:
+                return await method(*args, **kwargs)
+            except Exception:
+                error_occurred = True
+                raise
+            finally:
+                duration_sec = time.perf_counter() - start_time
+                registry.record_component_call(
+                    component_name, duration_sec, error_occurred
+                )
 
-
-def _get_component_type(cls) -> str:
-    """Determine component type from class decorators."""
-    if hasattr(cls, "__mitsuki_service__"):
-        return "service"
-    elif hasattr(cls, "__mitsuki_repository__"):
-        return "repository"
-    elif hasattr(cls, "__mitsuki_rest_controller__"):
-        return "controller"
-    else:
-        return "component"
-
-
-def _wrap_async_method(component_name: str, method: Callable):
-    """Wrap an async method with instrumentation."""
+        return async_wrapper
 
     @functools.wraps(method)
-    async def wrapper(*args, **kwargs):
-        registry = MetricsRegistry.get_instance_sync()
-        if not registry.enabled:
-            return await method(*args, **kwargs)
-
-        start_time = time.perf_counter()
-        error_occurred = False
-        try:
-            result = await method(*args, **kwargs)
-            return result
-        except Exception as e:
-            error_occurred = True
-            raise
-        finally:
-            duration_sec = time.perf_counter() - start_time
-            registry.record_component_call(component_name, duration_sec, error_occurred)
-
-    return wrapper
-
-
-def _wrap_sync_method(component_name: str, method: Callable):
-    """Wrap a sync method with instrumentation."""
-
-    @functools.wraps(method)
-    def wrapper(*args, **kwargs):
-        registry = MetricsRegistry.get_instance_sync()
+    def sync_wrapper(*args, **kwargs):
         if not registry.enabled:
             return method(*args, **kwargs)
 
         start_time = time.perf_counter()
         error_occurred = False
         try:
-            result = method(*args, **kwargs)
-            return result
-        except Exception as e:
+            return method(*args, **kwargs)
+        except Exception:
             error_occurred = True
             raise
         finally:
             duration_sec = time.perf_counter() - start_time
             registry.record_component_call(component_name, duration_sec, error_occurred)
 
-    return wrapper
+    return sync_wrapper
 
 
 class InstrumentationMiddleware:
@@ -298,16 +227,16 @@ class InstrumentationMiddleware:
     ASGI middleware to track HTTP requests.
     """
 
-    def __init__(self, app):
+    def __init__(self, app, registry: InstrumentationRegistry):
         self.app = app
+        self.registry = registry
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        registry = MetricsRegistry.get_instance_sync()
-        if not registry.enabled:
+        if not self.registry.enabled:
             await self.app(scope, receive, send)
             return
 
@@ -327,19 +256,23 @@ class InstrumentationMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             duration_sec = time.perf_counter() - start_time
-            registry.record_http_request(method, path, status_code, duration_sec)
+            self.registry.record_http_request(method, path, status_code, duration_sec)
 
 
-@Provider
+@Component()
 class InstrumentationProvider:
     """
     Provider for instrumentation functionality.
     Automatically registered when instrumentation is enabled.
     """
 
-    def __init__(self):
-        self.registry = MetricsRegistry.get_instance_sync()
-        self._core = CoreMetricsRegistry.get_instance()
+    def __init__(
+        self,
+        instrumentation_registry: InstrumentationRegistry,
+        metrics_storage: MetricsStorage,
+    ):
+        self.registry = instrumentation_registry
+        self._core = metrics_storage
 
     def record_metric(
         self, metric_name: str, value: float, labels: Optional[dict[str, str]] = None

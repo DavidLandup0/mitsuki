@@ -6,8 +6,9 @@ from typing import Any, Callable, Dict, List, Optional
 import pytz
 from croniter import croniter
 
+from mitsuki.core.container import get_container
 from mitsuki.core.logging import get_logger
-from mitsuki.core.metrics_core import MetricsRegistry
+from mitsuki.core.metrics_core import MetricsStorage
 
 logger = get_logger()
 
@@ -76,12 +77,12 @@ class TaskStatistics:
 class TaskScheduler:
     """Manages scheduled tasks for the application."""
 
-    def __init__(self):
+    def __init__(self, metrics_storage: MetricsStorage):
         self.tasks: List[asyncio.Task] = []
         self.running = False
         self._registered_count = 0
         self._statistics: Dict[str, TaskStatistics] = {}
-        self._metrics = MetricsRegistry.get_instance()
+        self._metrics = metrics_storage
 
         # Initialize scheduler metrics
         self._metrics.counter(
@@ -423,19 +424,6 @@ class TaskScheduler:
         }
 
 
-# Global scheduler instance
-_scheduler: Optional[TaskScheduler] = None
-
-
 def get_scheduler() -> TaskScheduler:
-    """Get the global task scheduler instance."""
-    global _scheduler
-    if _scheduler is None:
-        _scheduler = TaskScheduler()
-    return _scheduler
-
-
-def reset_scheduler() -> None:
-    """Reset the global scheduler (for testing)."""
-    global _scheduler
-    _scheduler = None
+    """Get the TaskScheduler instance from DI container."""
+    return get_container().get(TaskScheduler)

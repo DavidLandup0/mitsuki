@@ -8,7 +8,8 @@ import pytest
 
 from mitsuki import Scheduled, Service
 from mitsuki.core.container import DIContainer, set_container
-from mitsuki.core.scheduler import CRON_MACROS, TaskScheduler, reset_scheduler
+from mitsuki.core.metrics_core import MetricsStorage
+from mitsuki.core.scheduler import CRON_MACROS, TaskScheduler
 
 
 class TestScheduledDecorator:
@@ -86,12 +87,10 @@ class TestTaskScheduler:
     def setup_method(self):
         """Set up test fixtures."""
         set_container(DIContainer())
-        reset_scheduler()
 
     def teardown_method(self):
         """Clean up after tests."""
         set_container(DIContainer())
-        reset_scheduler()
 
     @pytest.mark.asyncio
     async def test_scheduler_register_and_start(self):
@@ -106,7 +105,8 @@ class TestTaskScheduler:
             async def increment(self):
                 self.counter += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         # Register the task
@@ -140,7 +140,8 @@ class TestTaskScheduler:
             async def increment(self):
                 self.counter += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -176,7 +177,8 @@ class TestTaskScheduler:
                 if self.counter == 2:
                     raise ValueError("Test error")
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -205,7 +207,8 @@ class TestTaskScheduler:
             async def increment(self):
                 self.counter += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -242,7 +245,8 @@ class TestTaskScheduler:
             async def task_b(self):
                 self.counter_b += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -273,7 +277,8 @@ class TestTaskScheduler:
             def sync_task(self):  # Synchronous method
                 self.counter += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -304,7 +309,8 @@ class TestTaskScheduler:
                 # Simulate work that takes 50ms
                 await asyncio.sleep(0.05)
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -342,7 +348,8 @@ class TestTaskScheduler:
                 # Simulate work that takes 30ms
                 await asyncio.sleep(0.03)
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -380,7 +387,8 @@ class TestTaskScheduler:
                 # Simulate work that takes 80ms (longer than 50ms interval)
                 await asyncio.sleep(0.08)
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -414,7 +422,8 @@ class TestTaskScheduler:
             async def cron_task(self):
                 self.counter += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         # Register cron task that runs every second
@@ -443,7 +452,8 @@ class TestTaskScheduler:
             async def cron_task(self):
                 self.counter += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         # Register with invalid cron
@@ -471,7 +481,8 @@ class TestTaskScheduler:
             async def hourly_task(self):
                 self.counter += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         # Register with macro
@@ -498,7 +509,8 @@ class TestTaskScheduler:
                 self.counter += 1
                 await asyncio.sleep(0.01)  # Simulate work
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -548,7 +560,8 @@ class TestTaskScheduler:
                 if self.counter % 2 == 0:
                     raise ValueError("Test error")
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -579,7 +592,8 @@ class TestTaskScheduler:
             async def eastern_task(self):
                 self.counter += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         # Register task with timezone
@@ -617,7 +631,8 @@ class TestTaskScheduler:
             async def monthly_task(self):
                 pass
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -649,7 +664,8 @@ class TestTaskScheduler:
             async def delayed_task(self):
                 pass
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -689,7 +705,8 @@ class TestTaskScheduler:
                 await asyncio.sleep(sleep_time)
                 self.execution_count += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -754,7 +771,8 @@ class TestTaskScheduler:
             async def cron_task(self):
                 self.cron_count += 1
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(
@@ -795,7 +813,8 @@ class TestTaskScheduler:
             async def test_task(self):
                 pass
 
-        scheduler = TaskScheduler()
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
         service = TestService()
 
         scheduler.register_scheduled_method(

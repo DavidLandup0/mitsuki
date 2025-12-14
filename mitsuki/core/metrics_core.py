@@ -206,35 +206,18 @@ class Histogram:
             return result
 
 
-class MetricsRegistry:
+class MetricsStorage:
     """
     Central registry for all application metrics.
 
     Singleton that stores both scheduler and instrumentation metrics.
     """
 
-    _instance: Optional["MetricsRegistry"] = None
-    _lock = threading.Lock()
-
     def __init__(self):
         self.counters: Dict[str, Counter] = {}
         self.gauges: Dict[str, Gauge] = {}
         self.histograms: Dict[str, Histogram] = {}
         self.enabled = False
-
-    @classmethod
-    def get_instance(cls) -> "MetricsRegistry":
-        """Get or create singleton instance."""
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = cls()
-        return cls._instance
-
-    @classmethod
-    def reset(cls):
-        """Reset singleton (for testing)."""
-        cls._instance = None
 
     def enable(self):
         """Enable metrics collection."""

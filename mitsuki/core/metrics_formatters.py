@@ -9,10 +9,10 @@ Provides two output formats:
 from datetime import datetime
 from typing import Any, Dict
 
-from mitsuki.core.metrics_core import MetricsRegistry
+from mitsuki.core.metrics_core import MetricsStorage
 
 
-def format_mitsuki(registry: MetricsRegistry) -> Dict[str, Any]:
+def format_mitsuki(registry: MetricsStorage) -> Dict[str, Any]:
     """
     Format metrics in Mitsuki's nested JSON format.
 
@@ -42,7 +42,7 @@ def format_mitsuki(registry: MetricsRegistry) -> Dict[str, Any]:
     return result
 
 
-def _extract_scheduler_metrics(registry: MetricsRegistry) -> Dict[str, Any]:
+def _extract_scheduler_metrics(registry: MetricsStorage) -> Dict[str, Any]:
     """Extract scheduler metrics in nested format."""
     # Check if scheduler metrics exist
     if "scheduler_task_executions_total" not in registry.counters:
@@ -103,7 +103,7 @@ def _extract_scheduler_metrics(registry: MetricsRegistry) -> Dict[str, Any]:
     }
 
 
-def _extract_instrumentation_metrics(registry: MetricsRegistry) -> Dict[str, Any]:
+def _extract_instrumentation_metrics(registry: MetricsStorage) -> Dict[str, Any]:
     """Extract instrumentation metrics in nested format."""
     result = {}
 
@@ -125,7 +125,7 @@ def _extract_instrumentation_metrics(registry: MetricsRegistry) -> Dict[str, Any
     return result
 
 
-def _extract_system_metrics(registry: MetricsRegistry) -> Dict[str, Any]:
+def _extract_system_metrics(registry: MetricsStorage) -> Dict[str, Any]:
     """Extract system metrics."""
     if "system_memory_bytes" not in registry.gauges:
         return {}
@@ -147,7 +147,7 @@ def _extract_system_metrics(registry: MetricsRegistry) -> Dict[str, Any]:
     }
 
 
-def _extract_http_metrics(registry: MetricsRegistry) -> Dict[str, Any]:
+def _extract_http_metrics(registry: MetricsStorage) -> Dict[str, Any]:
     """Extract HTTP metrics with aggregations."""
     if "http_requests_total" not in registry.counters:
         return {}
@@ -189,7 +189,7 @@ def _extract_http_metrics(registry: MetricsRegistry) -> Dict[str, Any]:
     }
 
 
-def _extract_component_metrics(registry: MetricsRegistry) -> Dict[str, Any]:
+def _extract_component_metrics(registry: MetricsStorage) -> Dict[str, Any]:
     """Extract component-level metrics."""
     if "component_calls_total" not in registry.counters:
         return {}
@@ -235,7 +235,7 @@ def _extract_component_metrics(registry: MetricsRegistry) -> Dict[str, Any]:
     return components
 
 
-def format_prometheus(registry: MetricsRegistry) -> str:
+def format_prometheus(registry: MetricsStorage) -> str:
     """
     Format metrics in Prometheus text format.
 
