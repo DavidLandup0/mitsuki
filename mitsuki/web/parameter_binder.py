@@ -30,7 +30,9 @@ class ParameterBinder:
         query_params = dict(request.query_params)
 
         for param_name, metadata in param_metadata.items():
-            if metadata.kind == ParameterKind.PATH:
+            if metadata.kind == ParameterKind.REQUEST:
+                args[param_name] = request
+            elif metadata.kind == ParameterKind.PATH:
                 args[param_name] = self._bind_path_param(
                     param_name, metadata, path_params
                 )

@@ -2,12 +2,14 @@ import inspect
 from dataclasses import dataclass
 from typing import Any, Optional, get_origin, get_type_hints
 
+from starlette.requests import Request
+
 
 @dataclass
 class ParamMetadata:
     """Metadata for parameter injection."""
 
-    kind: str  # 'path', 'query', 'body', 'header', 'file', 'form'
+    kind: str  # 'path', 'query', 'body', 'header', 'file', 'form', 'request'
     name: Optional[str] = None
     required: bool = True
     default: Any = None
@@ -185,8 +187,16 @@ def extract_param_metadata(func) -> dict:
         param_type = type_hints.get(param_name, Any)
         default = param.default
 
+        # Check if parameter type is Request - inject it automatically
+        if param_type is Request:
+            metadata[param_name] = ParamMetadata(
+                kind="request",
+                name=param_name,
+                required=True,
+                param_type=Request,
+            )
         # Check if default is one of our parameter markers
-        if isinstance(default, PathVariable):
+        elif isinstance(default, PathVariable):
             metadata[param_name] = ParamMetadata(
                 kind="path",
                 name=default.name or param_name,

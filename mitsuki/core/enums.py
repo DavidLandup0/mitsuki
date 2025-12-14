@@ -128,6 +128,7 @@ class ParameterKind(MitsukiEnum):
     FILE = "file"
     FORM = "form"
     AUTO = "auto"
+    REQUEST = "request"
 
 
 class Scope(MitsukiEnum):
