@@ -56,6 +56,17 @@ def Scheduled(
     return decorator
 
 
+def _register_component(cls, name, scope):
+    container = get_container()
+    container.register(cls, name=name, scope=scope)
+
+
+def _attach_component_metadata(cls, name, scope):
+    cls.__mitsuki_component__ = True
+    cls.__mitsuki_name__ = name or cls.__name__
+    cls.__mitsuki_scope__ = scope
+
+
 def Component(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGLETON):
     """
     Generic component decorator. Marks a class as a managed component.
@@ -66,13 +77,8 @@ def Component(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGL
     """
 
     def decorator(cls: Type) -> Type:
-        container = get_container()
-        container.register(cls, name=name, scope=scope)
-
-        # Store metadata on class for introspection
-        cls.__mitsuki_component__ = True
-        cls.__mitsuki_name__ = name or cls.__name__
-        cls.__mitsuki_scope__ = scope
+        _attach_component_metadata(cls, name, scope)
+        _register_component(cls, name, scope)
 
         return cls
 
@@ -90,13 +96,8 @@ def Service(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGLET
     """
 
     def decorator(cls: Type) -> Type:
-        container = get_container()
-        container.register(cls, name=name, scope=scope)
-
-        cls.__mitsuki_component__ = True
+        cls = Component(name=name, scope=scope)(cls)
         cls.__mitsuki_service__ = True
-        cls.__mitsuki_name__ = name or cls.__name__
-        cls.__mitsuki_scope__ = scope
 
         return cls
 
@@ -114,13 +115,8 @@ def Repository(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SING
     """
 
     def decorator(cls: Type) -> Type:
-        container = get_container()
-        container.register(cls, name=name, scope=scope)
-
-        cls.__mitsuki_component__ = True
+        cls = Component(name=name, scope=scope)(cls)
         cls.__mitsuki_repository__ = True
-        cls.__mitsuki_name__ = name or cls.__name__
-        cls.__mitsuki_scope__ = scope
 
         return cls
 
@@ -132,12 +128,8 @@ def Configuration(cls: Type) -> Type:
     Configuration class decorator.
     Marks a class as a configuration source for providers.
     """
-    # Set attributes BEFORE registering so container can detect them
     cls.__mitsuki_configuration__ = True
-    cls.__mitsuki_component__ = True
-
-    container = get_container()
-    container.register(cls, name=cls.__name__, scope=Scope.SINGLETON)
+    cls = Component(scope=Scope.SINGLETON)(cls)
 
     return cls
 
