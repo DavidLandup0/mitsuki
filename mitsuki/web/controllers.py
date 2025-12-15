@@ -1,6 +1,7 @@
 from typing import List, Tuple, Type
 
 from mitsuki.core.container import get_container
+from mitsuki.core.decorators import _maybe_auto_instrument
 from mitsuki.core.enums import Scope
 
 
@@ -25,8 +26,6 @@ def RestController(path: str = ""):
         cls.__mitsuki_scope__ = Scope.SINGLETON
 
         # Auto-instrument if application has @Instrumented
-        from mitsuki.core.decorators import _maybe_auto_instrument
-
         _maybe_auto_instrument(cls)
 
         return cls
