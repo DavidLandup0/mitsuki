@@ -23,6 +23,8 @@ from mitsuki.web.controllers import get_all_controllers
 # Global reference to application class for auto-instrumentation
 _application_class: Optional[Type] = None
 
+logger = get_logger()
+
 
 class ApplicationContext:
     """
@@ -68,17 +70,13 @@ class ApplicationContext:
 
     def _register_metrics_endpoint(self):
         """Register metrics endpoint if enabled in configuration."""
-
         config = get_config()
         metrics_controller = create_metrics_endpoint(config)
-
         if metrics_controller:
-            # Metrics controller is auto-registered via @RestController decorator
-            pass
+            logger.info(f"Registered metrics controller: {metrics_controller}")
 
     def _scan_scheduled_tasks(self):
         """Scan all registered components for @Scheduled methods."""
-        logger = get_logger()
         config = get_config()
         scheduler_enabled = config.get_bool("scheduler.enabled")
 
@@ -139,9 +137,6 @@ class ApplicationContext:
         # This ensures tasks are registered in the correct process when using multi-process servers
         server = create_server(self)
         self._server = server
-
-        config = get_config()
-        logger = get_logger()
 
         # To avoid circular imports
         from mitsuki import __version__

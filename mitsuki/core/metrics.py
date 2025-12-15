@@ -3,11 +3,14 @@ import ipaddress
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
+from mitsuki.core.logging import get_logger
 from mitsuki.core.metrics_core import MetricsStorage
 from mitsuki.core.metrics_formatters import format_mitsuki, format_prometheus
 from mitsuki.web.controllers import RestController
 from mitsuki.web.mappings import GetMapping
 from mitsuki.web.response import ResponseEntity
+
+logger = get_logger()
 
 
 def create_metrics_endpoint(config):
@@ -58,6 +61,8 @@ def create_metrics_endpoint(config):
         async def get_metrics(self, request: Request):
             """Get all application metrics in Mitsuki format."""
             if not self._check_ip_allowed(request):
+                client_ip = request.client.host
+                logger.warning(f"Metrics access denied for IP: {client_ip}")
                 return ResponseEntity.not_found({"error": "Not found"})
 
             return format_mitsuki(self._core_registry)
@@ -66,6 +71,8 @@ def create_metrics_endpoint(config):
         async def get_prometheus_metrics(self, request: Request):
             """Get all application metrics in Prometheus format."""
             if not self._check_ip_allowed(request):
+                client_ip = request.client.host
+                logger.warning(f"Metrics access denied for IP: {client_ip}")
                 return ResponseEntity.not_found({"error": "Not found"})
 
             content = format_prometheus(self._core_registry)
