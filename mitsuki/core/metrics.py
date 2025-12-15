@@ -5,7 +5,7 @@ from starlette.responses import PlainTextResponse
 
 from mitsuki.core.logging import get_logger
 from mitsuki.core.metrics_core import MetricsStorage
-from mitsuki.core.metrics_formatters import format_mitsuki, format_prometheus
+from mitsuki.core.metrics_formatters import format_json, format_prometheus
 from mitsuki.web.controllers import RestController
 from mitsuki.web.mappings import GetMapping
 from mitsuki.web.response import ResponseEntity
@@ -39,7 +39,20 @@ def create_metrics_endpoint(config):
             self._core_registry = metrics_storage
 
         def _check_ip_allowed(self, request: Request) -> bool:
-            """Check if request IP is allowed."""
+            """
+            Check if request IP is allowed.
+
+            This is trivially simple, just a string comparison.
+            NOTE: This is naturally affected by reverse proxies, load balancers, etc.
+                i.e. the incoming request will use the service's IP address.
+            TODO: Formalize this further, at least, and think of ways
+                to make it difficult to accidentally leak the endpoint while
+                using something like Nginx if the user isn't aware of security practices
+                and just allowlists the entire Nginx CIDR or something.
+
+                For now - we just document strongly that the user has to think of security
+                and which IPs they allowlist.
+            """
             if not allowed_ips:
                 return True
 
@@ -65,7 +78,7 @@ def create_metrics_endpoint(config):
                 logger.warning(f"Metrics access denied for IP: {client_ip}")
                 return ResponseEntity.not_found({"error": "Not found"})
 
-            return format_mitsuki(self._core_registry)
+            return format_json(self._core_registry)
 
         @GetMapping(f"{metrics_path}/prometheus")
         async def get_prometheus_metrics(self, request: Request):

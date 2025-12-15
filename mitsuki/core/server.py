@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import logging
 from contextlib import asynccontextmanager
@@ -83,8 +84,6 @@ class MitsukiASGIApp:
             registry = get_container().get(InstrumentationRegistry)
             if registry.enabled and not registry._background_task:
                 try:
-                    import asyncio
-
                     registry._background_task = asyncio.create_task(
                         registry._collect_system_metrics()
                     )

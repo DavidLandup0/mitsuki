@@ -1,18 +1,10 @@
-"""
-Formatters for metrics output.
-
-Provides two output formats:
-- Mitsuki: Nested JSON with computed aggregations (human-readable)
-- Prometheus: Flat text format with labels (machine-readable, Grafana-compatible)
-"""
-
 from datetime import datetime
 from typing import Any, Dict
 
 from mitsuki.core.metrics_core import MetricsStorage
 
 
-def format_mitsuki(registry: MetricsStorage) -> Dict[str, Any]:
+def format_json(registry: MetricsStorage) -> Dict[str, Any]:
     """
     Format metrics in Mitsuki's nested JSON format.
 

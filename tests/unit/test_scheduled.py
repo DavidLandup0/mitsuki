@@ -1,7 +1,3 @@
-"""
-Tests for @Scheduled decorator and task scheduling.
-"""
-
 import asyncio
 
 import pytest

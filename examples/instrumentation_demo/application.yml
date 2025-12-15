@@ -1,0 +1,32 @@
+server:
+  port: 8000
+  type: granian
+  workers: 1
+
+logging:
+  level: INFO
+
+database:
+  url: 'sqlite+aiosqlite:///:memory:'
+  adapter: sqlalchemy
+
+instrumentation:
+  enabled: true
+  track_memory: true
+
+metrics:
+  enabled: true
+  path: /metrics
+  # Allow access from:
+  # - Docker internal network range (172.16.0.0/12) - i.e. 172.16.0.0 to 172.31.255.255
+  # - Local network range (192.168.0.0/16)
+  allowed_ips: ["172.16.0.0/12", "192.168.0.0/16"]  # Empty list = allow all. For production, specify your network ranges.
+
+scheduler:
+  enabled: true
+
+openapi:
+  enabled: true
+  title: "Instrumentation Demo API"
+  version: "1.0.0"
+  description: "Example demonstrating Mitsuki instrumentation and metrics collection"

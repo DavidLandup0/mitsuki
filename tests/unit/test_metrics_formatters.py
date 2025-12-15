@@ -3,7 +3,7 @@ import re
 import pytest
 
 from mitsuki.core.metrics_core import MetricsStorage
-from mitsuki.core.metrics_formatters import format_mitsuki, format_prometheus
+from mitsuki.core.metrics_formatters import format_json, format_prometheus
 
 
 class TestPrometheusFormatter:
@@ -123,7 +123,7 @@ class TestMitsukiFormatter:
     def test_format_disabled_registry(self):
         """Test formatting disabled metrics registry."""
         storage = MetricsStorage()
-        result = format_mitsuki(storage)
+        result = format_json(storage)
 
         assert result["enabled"] is False
         assert "timestamp" in result
@@ -132,7 +132,7 @@ class TestMitsukiFormatter:
         """Test formatting empty enabled metrics registry."""
         storage = MetricsStorage()
         storage.enable()
-        result = format_mitsuki(storage)
+        result = format_json(storage)
 
         assert result["enabled"] is True
         assert "timestamp" in result
@@ -150,7 +150,7 @@ class TestMitsukiFormatter:
         histogram.observe(0.1, {"method": "GET", "path": "/api/users"})
         histogram.observe(0.2, {"method": "GET", "path": "/api/users"})
 
-        result = format_mitsuki(storage)
+        result = format_json(storage)
 
         assert "instrumentation" in result
         assert "http" in result["instrumentation"]
@@ -170,7 +170,7 @@ class TestMitsukiFormatter:
         memory_gauge.set(2097152.0, {"type": "vms"})
         cpu_gauge.set(25.5)
 
-        result = format_mitsuki(storage)
+        result = format_json(storage)
 
         assert "instrumentation" in result
         assert "system" in result["instrumentation"]
@@ -190,7 +190,7 @@ class TestMitsukiFormatter:
         counter.inc({"component": "UserService", "status": "success"})
         histogram.observe(0.05, {"component": "UserService"})
 
-        result = format_mitsuki(storage)
+        result = format_json(storage)
 
         assert "instrumentation" in result
         assert "components" in result["instrumentation"]
@@ -209,7 +209,7 @@ class TestMitsukiFormatter:
         counter.inc({"task": "CleanupTask", "status": "success"})
         histogram.observe(0.1, {"task": "CleanupTask"})
 
-        result = format_mitsuki(storage)
+        result = format_json(storage)
 
         assert "scheduler" in result
         scheduler_data = result["scheduler"]
@@ -232,7 +232,7 @@ class TestFormatterIntegration:
         counter.inc({"method": "POST", "path": "/api", "status": "404"})
 
         prom_output = format_prometheus(storage)
-        mitsuki_output = format_mitsuki(storage)
+        mitsuki_output = format_json(storage)
 
         assert (
             'http_requests_total{method="GET",path="/api",status="200"} 2.0'
@@ -260,7 +260,7 @@ class TestFormatterIntegration:
         duration_histogram.observe(0.25, {"method": "POST", "path": "/api/users"})
 
         prom_output = format_prometheus(storage)
-        mitsuki_output = format_mitsuki(storage)
+        mitsuki_output = format_json(storage)
 
         assert prom_output
         assert "instrumentation" in mitsuki_output

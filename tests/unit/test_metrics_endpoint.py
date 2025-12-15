@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import Mock
+
+import pytest
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
@@ -26,7 +27,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": []
+            "metrics.allowed_ips": [],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -41,7 +42,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/custom/metrics",
-            "metrics.allowed_ips": []
+            "metrics.allowed_ips": [],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -55,7 +56,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": []
+            "metrics.allowed_ips": [],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -79,7 +80,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": []
+            "metrics.allowed_ips": [],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -102,7 +103,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": ["127.0.0.1"]
+            "metrics.allowed_ips": ["127.0.0.1"],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -126,7 +127,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": ["127.0.0.1"]
+            "metrics.allowed_ips": ["127.0.0.1"],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -150,7 +151,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": ["127.0.0.1", "192.168.1.100"]
+            "metrics.allowed_ips": ["127.0.0.1", "192.168.1.100"],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -173,7 +174,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": ["172.16.0.0/12"]
+            "metrics.allowed_ips": ["172.16.0.0/12"],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -197,7 +198,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": ["172.16.0.0/12"]
+            "metrics.allowed_ips": ["172.16.0.0/12"],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -222,7 +223,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": ["127.0.0.1"]
+            "metrics.allowed_ips": ["127.0.0.1"],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -245,7 +246,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": []
+            "metrics.allowed_ips": [],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
@@ -273,7 +274,7 @@ class TestMetricsEndpoint:
         config.get_bool.return_value = True
         config.get.side_effect = lambda key, default=None: {
             "metrics.path": "/metrics",
-            "metrics.allowed_ips": []
+            "metrics.allowed_ips": [],
         }.get(key, default)
 
         controller_class = create_metrics_endpoint(config)
