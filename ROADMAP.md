@@ -10,6 +10,8 @@ With the completion of the features below - we go into 0.2.x versions:
     - Consolidate/unify @Scheduled metrics with @Instrumented metrics
     - Add core metric collection support
     - Support for Prometheus format metrics for scraping/ingestion
+- Alembic support
+    - Support through both the CLI init and connecting the DB with Alembic for easy migrations
 
 ### Minor Features
 - Request injection in controllers
