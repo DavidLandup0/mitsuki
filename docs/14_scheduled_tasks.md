@@ -505,7 +505,7 @@ class ScheduledDataService:
 
 ### Metrics and Instrumentation
 
-When the scheduler is enabled, Mitsuki automatically records metrics for all `@Scheduled` tasks through the instrumentation system. These metrics are exposed at `/metrics` and `/metrics/prometheus` endpoints.
+When the scheduler and metrics are enabled, Mitsuki automatically records metrics for all `@Scheduled` tasks. These metrics are exposed at `/metrics` and `/metrics/prometheus` endpoints.
 
 **Enable metrics:**
 
@@ -514,12 +514,16 @@ When the scheduler is enabled, Mitsuki automatically records metrics for all `@S
 scheduler:
   enabled: true
 
-instrumentation:
-  enabled: true
-
 metrics:
   enabled: true
   path: /metrics
+```
+
+Note: Scheduler metrics work independently of `instrumentation.enabled`. However, if you want HTTP request metrics and component metrics in addition to scheduler metrics, enable instrumentation as well:
+
+```yaml
+instrumentation:
+  enabled: true  # Optional - for HTTP and component metrics
 ```
 
 **Metrics tracked automatically:**

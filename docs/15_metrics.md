@@ -199,7 +199,7 @@ instrumentation:
 - Task execution duration
 - Number of running tasks
 
-**System Metrics** (when `instrumentation.enabled: true`):
+**System Metrics** (when `track_memory: true`):
 - CPU usage percentage
 - Memory usage (RSS, VMS)
 
@@ -279,7 +279,16 @@ scheduler_task_duration_seconds_count{task="BackgroundService.cleanup"} 42
 
 ## Scheduler Metrics
 
-When the scheduler is enabled, Mitsuki automatically records metrics for all `@Scheduled` tasks:
+When the scheduler and metrics are enabled, Mitsuki automatically records metrics for all `@Scheduled` tasks:
+
+**Configuration:**
+```yaml
+scheduler:
+  enabled: true
+
+metrics:
+  enabled: true
+```
 
 **Metrics tracked:**
 - `scheduler_task_executions_total` - Counter with labels `{task, status}`
