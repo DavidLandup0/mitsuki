@@ -1,7 +1,8 @@
 from typing import List, Tuple, Type
 
 from mitsuki.core.container import get_container
-from mitsuki.core.enums import Scope
+from mitsuki.core.decorators import Component
+from mitsuki.core.enums import Scope, StereotypeType
 
 
 def RestController(path: str = ""):
@@ -14,15 +15,9 @@ def RestController(path: str = ""):
     """
 
     def decorator(cls: Type) -> Type:
-        container = get_container()
-        container.register(cls, name=cls.__name__, scope=Scope.SINGLETON)
-
-        cls.__mitsuki_controller__ = True
-        cls.__mitsuki_rest_controller__ = True
         cls.__mitsuki_base_path__ = path
-        cls.__mitsuki_component__ = True
-        cls.__mitsuki_name__ = cls.__name__
-        cls.__mitsuki_scope__ = Scope.SINGLETON
+        cls = Component(name=cls.__name__, scope=Scope.SINGLETON)(cls)
+        cls._stereotype_subtype = StereotypeType.CONTROLLER
 
         return cls
 
@@ -74,8 +69,8 @@ def get_all_controllers() -> List[Tuple[Type, str]]:
         metadata = container._components_by_name[component_name]
         cls = metadata.cls
 
-        if hasattr(cls, "__mitsuki_controller__"):
-            base_path = getattr(cls, "__mitsuki_base_path__", "")
+        if cls._stereotype_subtype == StereotypeType.CONTROLLER:
+            base_path = cls.__mitsuki_base_path__
             controllers.append((cls, base_path))
 
     return controllers

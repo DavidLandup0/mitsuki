@@ -3,7 +3,8 @@ from typing import Any, Dict, List, Optional, Type
 
 from mitsuki.config.properties import get_config, log_config_sources
 from mitsuki.core.container import get_container
-from mitsuki.core.enums import Scope, ServerType
+from mitsuki.core.decorators import Configuration
+from mitsuki.core.enums import ServerType
 from mitsuki.core.logging import configure_logging, get_logger
 from mitsuki.core.metrics import create_metrics_endpoint
 from mitsuki.core.providers import initialize_configuration_providers
@@ -196,12 +197,9 @@ def Application(
 
     def decorator(cls: Type) -> Type:
         cls.__mitsuki_application__ = True
-        cls.__mitsuki_configuration__ = True
         cls.__mitsuki_scan_packages__ = scan_packages
 
-        # Register as configuration component
-        container = get_container()
-        container.register(cls, name=cls.__name__, scope=Scope.SINGLETON)
+        cls = Configuration(cls)
 
         # Attach factory and ASGI wrapper for Granian workers
         _app_instance = None

@@ -7,7 +7,7 @@ from dataclasses import asdict
 from datetime import datetime
 from typing import Any, List, Optional, Type, get_args, get_origin
 
-from mitsuki.core.container import get_container
+from mitsuki.core.decorators import Repository as RepositoryDecorator
 from mitsuki.core.enums import Scope
 from mitsuki.core.logging import get_logger
 from mitsuki.core.utils import uuid7
@@ -557,20 +557,14 @@ def CrudRepository(entity: Type):
                     f"'{repo_class.__name__}' object has no attribute '{name}'"
                 )
 
-        # Copy class name and metadata
         GeneratedRepository.__name__ = repo_class.__name__
         GeneratedRepository.__qualname__ = repo_class.__qualname__
         GeneratedRepository.__module__ = repo_class.__module__
-
-        # Mark as repository
-        GeneratedRepository.__mitsuki_repository__ = True
         GeneratedRepository.__mitsuki_entity_type__ = entity
 
-        # Register in DI container
-        container = get_container()
-        container.register(
-            GeneratedRepository, name=repo_class.__name__, scope=Scope.SINGLETON
-        )
+        GeneratedRepository = RepositoryDecorator(
+            name=repo_class.__name__, scope=Scope.SINGLETON
+        )(GeneratedRepository)
 
         return GeneratedRepository
 

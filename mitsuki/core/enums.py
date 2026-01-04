@@ -136,3 +136,14 @@ class Scope(MitsukiEnum):
 
     SINGLETON = "singleton"
     PROTOTYPE = "prototype"
+
+
+class StereotypeType(MitsukiEnum):
+    """Flags for components"""
+
+    COMPONENT = "component"
+    SERVICE = "service"
+    REPOSITORY = "repository"
+    CONTROLLER = "controller"
+    PROVIDER = "provider"
+    CONFIGURATION = "configuration"
