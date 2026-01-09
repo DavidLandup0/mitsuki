@@ -5,6 +5,7 @@ Tests for @Application decorator and application startup.
 import inspect
 
 from mitsuki import Application
+from mitsuki.core.enums import StereotypeType
 from mitsuki.core.server import _start_granian, _start_uvicorn
 
 
@@ -47,8 +48,7 @@ class TestApplicationStartup:
 
         assert hasattr(TestApp, "__mitsuki_application__")
         assert TestApp.__mitsuki_application__ is True
-        assert hasattr(TestApp, "__mitsuki_configuration__")
-        assert TestApp.__mitsuki_configuration__ is True
+        assert TestApp._stereotype_subtype == StereotypeType.CONFIGURATION
 
     def test_application_creates_run_method(self):
         """@Application should add run() class method."""

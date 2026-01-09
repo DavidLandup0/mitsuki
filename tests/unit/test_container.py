@@ -6,7 +6,7 @@ import pytest
 
 from mitsuki.core.container import DIContainer, get_container, set_container
 from mitsuki.core.decorators import Component, Repository, Service
-from mitsuki.core.enums import Scope
+from mitsuki.core.enums import Scope, StereotypeType
 from mitsuki.exceptions import ComponentNotFoundException
 
 
@@ -23,43 +23,43 @@ class TestBasicRegistration:
 
     def test_register_component(self):
         """Should register a component by class."""
-        container = DIContainer()
 
+        @Component()
         class MyComponent:
             pass
 
-        container.register(MyComponent)
+        container = get_container()
         assert MyComponent in container._components
 
     def test_register_with_name(self):
         """Should register a component with a custom name."""
-        container = DIContainer()
 
+        @Component(name="custom_name")
         class MyComponent:
             pass
 
-        container.register(MyComponent, name="custom_name")
+        container = get_container()
         assert "custom_name" in container._components_by_name
 
     def test_register_singleton(self):
         """Should register singleton components by default."""
-        container = DIContainer()
 
+        @Component(scope="singleton")
         class MyComponent:
             pass
 
-        container.register(MyComponent, scope="singleton")
+        container = get_container()
         metadata = container._components[MyComponent]
         assert metadata.scope == "singleton"
 
     def test_register_prototype(self):
         """Should register prototype components."""
-        container = DIContainer()
 
+        @Component(scope="prototype")
         class MyComponent:
             pass
 
-        container.register(MyComponent, scope="prototype")
+        container = get_container()
         metadata = container._components[MyComponent]
         assert metadata.scope == "prototype"
 
@@ -264,7 +264,7 @@ class TestStereotypeDecorators:
         container = get_container()
         service = container.get(MyService)
         assert isinstance(service, MyService)
-        assert hasattr(MyService, "__mitsuki_service__")
+        assert MyService._stereotype_subtype == StereotypeType.SERVICE
 
     def test_repository_decorator(self):
         """@Repository should register as component."""
@@ -276,7 +276,7 @@ class TestStereotypeDecorators:
         container = get_container()
         repo = container.get(MyRepository)
         assert isinstance(repo, MyRepository)
-        assert hasattr(MyRepository, "__mitsuki_repository__")
+        assert MyRepository._stereotype_subtype == StereotypeType.REPOSITORY
 
     def test_service_with_dependencies(self):
         """@Service can have dependencies."""
@@ -300,14 +300,13 @@ class TestNonClassTypes:
 
     def test_primitive_not_injectable(self):
         """Primitive types should not be auto-injected."""
-        container = DIContainer()
 
+        @Component()
         class ServiceWithPrimitive:
             def __init__(self, value: int):
                 self.value = value
 
-        container.register(ServiceWithPrimitive)
-
+        container = get_container()
         # Should fail because int is not a registered component
         with pytest.raises(Exception):
             container.get(ServiceWithPrimitive)
@@ -335,8 +334,7 @@ class TestComponentMetadata:
         class MyComponent:
             pass
 
-        assert hasattr(MyComponent, "__mitsuki_component__")
-        assert MyComponent.__mitsuki_component__ is True
+        assert MyComponent._stereotype == StereotypeType.COMPONENT
         assert MyComponent.__mitsuki_name__ == "custom"
         assert MyComponent.__mitsuki_scope__ == "singleton"
 

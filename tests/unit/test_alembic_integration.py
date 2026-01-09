@@ -265,7 +265,7 @@ class TestAlembicProfileResolution:
             if profile:
                 config_file = tmp_path / f"application-{profile}.yml"
                 if not config_file.exists():
-                    raise FileNotFoundError(f"Config not found")
+                    raise FileNotFoundError("Config not found")
             else:
                 config_file = base_config
 

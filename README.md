@@ -156,9 +156,11 @@ Here's a live example, of starting a Mitsuki project, which includes:
 
 ## Why Mitsuki?
 
-Mitsuki brings enterprise strength without enterprise complexity.
+Mitsuki brings battle-tested web application patterns strength without introducing high complexity.
 
 This is achieved through bringing dependency injection, declarative controllers, and auto-repositories to Python without the ceremony. It's highly inspired by Spring Boot in its early stages.
+
+Conceptually, you can think of it as a structured dependency injection framework with syntactic sugar and tooling built on top of Starlette and Granian/Uvicorn.
 
 ### High-Performance and Lightweight
 

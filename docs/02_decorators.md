@@ -13,6 +13,10 @@
 
 Generic component decorator. Marks a class as a managed component in the DI container.
 
+A `@Component` is simply a generic *stereotype* - i.e. a component managed by the DI container. Other sub-types exist, such as `@Repository`, `@Service` or `@Controller`, which are effectively extenssions on top of a basic `@Component`.
+
+Stereotypes like `@Service` are functionally equivalent to a `@Component` (i.e. just a naming/intention difference), but certain stereotypes already have implementations for extra functionality, like `@Repository` components. All future features are planned around flags set when annotating a component.
+
 ```python
 from mitsuki import Component
 

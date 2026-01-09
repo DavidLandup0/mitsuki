@@ -5,9 +5,11 @@ Tests for thread-safety in DIContainer singleton creation.
 import threading
 import time
 
-from mitsuki.core.container import DIContainer
+from mitsuki.core.container import DIContainer, get_container, set_container
+from mitsuki.core.decorators import Component, _register_component
 
 
+@Component(scope="singleton")
 class ExpensiveSingleton:
     """Singleton with slow initialization to trigger race conditions."""
 
@@ -20,6 +22,7 @@ class ExpensiveSingleton:
         self.id = ExpensiveSingleton.instance_count
 
 
+@Component(scope="singleton")
 class SingletonWithDependency:
     """Singleton that depends on another singleton."""
 
@@ -29,11 +32,19 @@ class SingletonWithDependency:
 
 def test_singleton_created_once_under_concurrent_access():
     """Test that singleton is only created once even with concurrent get() calls."""
+    # Note: ExpensiveSingleton is decorated with @Component at module level
+    # Reset the counter before test
     ExpensiveSingleton.instance_count = 0
 
-    container = DIContainer()
-    container.register(ExpensiveSingleton, scope="singleton")
+    # The decorator already registered it, but we need to use a fresh container for this test
+    # to ensure thread-safety testing is isolated
 
+    set_container(DIContainer())
+
+    # Re-register for this test's container
+    _register_component(ExpensiveSingleton, None, "singleton")
+
+    container = get_container()
     instances = []
     errors = []
 
@@ -74,10 +85,13 @@ def test_singleton_with_dependencies_created_once():
     """Test that singletons with dependencies are only created once."""
     ExpensiveSingleton.instance_count = 0
 
-    container = DIContainer()
-    container.register(ExpensiveSingleton, scope="singleton")
-    container.register(SingletonWithDependency, scope="singleton")
+    set_container(DIContainer())
 
+    # Re-register for this test's container
+    _register_component(ExpensiveSingleton, None, "singleton")
+    _register_component(SingletonWithDependency, None, "singleton")
+
+    container = get_container()
     instances = []
 
     def get_instance():
@@ -104,15 +118,31 @@ def test_singleton_with_dependencies_created_once():
 
 def test_prototype_creates_multiple_instances():
     """Test that prototype scope creates new instances."""
-    ExpensiveSingleton.instance_count = 0
 
-    container = DIContainer()
-    container.register(ExpensiveSingleton, scope="prototype")
+    # Define a separate prototype class for this test
+    @Component(scope="prototype")
+    class PrototypeExpensiveSingleton:
+        """Prototype with slow initialization."""
 
+        instance_count = 0
+
+        def __init__(self):
+            time.sleep(0.01)
+            PrototypeExpensiveSingleton.instance_count += 1
+            self.id = PrototypeExpensiveSingleton.instance_count
+
+    PrototypeExpensiveSingleton.instance_count = 0
+
+    set_container(DIContainer())
+
+    # Re-register for this test's container
+    _register_component(PrototypeExpensiveSingleton, None, "prototype")
+
+    container = get_container()
     instances = []
 
     def get_instance():
-        instance = container.get(ExpensiveSingleton)
+        instance = container.get(PrototypeExpensiveSingleton)
         instances.append(instance)
 
     threads = []
@@ -127,7 +157,7 @@ def test_prototype_creates_multiple_instances():
         t.join()
 
     # Verify 5 different instances were created
-    assert ExpensiveSingleton.instance_count == 5
+    assert PrototypeExpensiveSingleton.instance_count == 5
     assert len(instances) == 5
 
     # Verify they're all different instances

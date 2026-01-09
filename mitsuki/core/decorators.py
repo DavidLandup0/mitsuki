@@ -2,7 +2,7 @@ from functools import wraps
 from typing import Callable, Optional, Type, Union
 
 from mitsuki.core.container import get_container
-from mitsuki.core.enums import Scope
+from mitsuki.core.enums import Scope, StereotypeType
 
 
 def _maybe_auto_instrument(cls: Type):
@@ -66,6 +66,18 @@ def Scheduled(
     return decorator
 
 
+def _register_component(cls, name, scope):
+    container = get_container()
+    container.register(cls, name=name, scope=scope)
+
+
+def _attach_component_metadata(cls, name, scope):
+    cls._stereotype = StereotypeType.COMPONENT
+    cls._stereotype_subtype = None
+    cls.__mitsuki_name__ = name or cls.__name__
+    cls.__mitsuki_scope__ = scope
+
+
 def Component(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGLETON):
     """
     Generic component decorator. Marks a class as a managed component.
@@ -76,13 +88,8 @@ def Component(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGL
     """
 
     def decorator(cls: Type) -> Type:
-        container = get_container()
-        container.register(cls, name=name, scope=scope)
-
-        # Store metadata on class for introspection
-        cls.__mitsuki_component__ = True
-        cls.__mitsuki_name__ = name or cls.__name__
-        cls.__mitsuki_scope__ = scope
+        _attach_component_metadata(cls, name, scope)
+        _register_component(cls, name, scope)
 
         return cls
 
@@ -100,13 +107,8 @@ def Service(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGLET
     """
 
     def decorator(cls: Type) -> Type:
-        container = get_container()
-        container.register(cls, name=name, scope=scope)
-
-        cls.__mitsuki_component__ = True
-        cls.__mitsuki_service__ = True
-        cls.__mitsuki_name__ = name or cls.__name__
-        cls.__mitsuki_scope__ = scope
+        cls = Component(name=name, scope=scope)(cls)
+        cls._stereotype_subtype = StereotypeType.SERVICE
 
         # Auto-instrument if application has @Instrumented
         _maybe_auto_instrument(cls)
@@ -127,13 +129,8 @@ def Repository(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SING
     """
 
     def decorator(cls: Type) -> Type:
-        container = get_container()
-        container.register(cls, name=name, scope=scope)
-
-        cls.__mitsuki_component__ = True
-        cls.__mitsuki_repository__ = True
-        cls.__mitsuki_name__ = name or cls.__name__
-        cls.__mitsuki_scope__ = scope
+        cls = Component(name=name, scope=scope)(cls)
+        cls._stereotype_subtype = StereotypeType.REPOSITORY
 
         # Auto-instrument if application has @Instrumented
         _maybe_auto_instrument(cls)
@@ -148,12 +145,10 @@ def Configuration(cls: Type) -> Type:
     Configuration class decorator.
     Marks a class as a configuration source for providers.
     """
-    # Set attributes BEFORE registering so container can detect them
-    cls.__mitsuki_configuration__ = True
-    cls.__mitsuki_component__ = True
-
-    container = get_container()
-    container.register(cls, name=cls.__name__, scope=Scope.SINGLETON)
+    # Ugly, but we need to set the sterotype subtype before regitering for Configurations, for now.
+    _attach_component_metadata(cls, name=None, scope=Scope.SINGLETON)
+    cls._stereotype_subtype = StereotypeType.CONFIGURATION
+    _register_component(cls, name=None, scope=Scope.SINGLETON)
 
     return cls
 

@@ -6,6 +6,7 @@ These tests actually start the Mitsuki application to verify it can boot correct
 
 import os
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -40,7 +41,7 @@ if __name__ == "__main__":
     try:
         # Start the app as subprocess
         process = subprocess.Popen(
-            ["python3", app_file],
+            [sys.executable, app_file],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -113,7 +114,7 @@ if __name__ == "__main__":
 
     try:
         process = subprocess.Popen(
-            ["python3", app_file],
+            [sys.executable, app_file],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -173,7 +174,7 @@ if __name__ == "__main__":
 
     try:
         process = subprocess.Popen(
-            ["python3", app_file],
+            [sys.executable, app_file],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )

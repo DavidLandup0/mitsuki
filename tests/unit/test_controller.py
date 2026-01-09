@@ -21,6 +21,7 @@ from mitsuki import (
     Service,
 )
 from mitsuki.core.container import DIContainer, get_container, set_container
+from mitsuki.core.enums import StereotypeType
 
 
 @pytest.fixture(autouse=True)
@@ -41,8 +42,7 @@ class TestControllerRegistration:
         class MyController:
             pass
 
-        assert hasattr(MyController, "__mitsuki_controller__")
-        assert MyController.__mitsuki_controller__ is True
+        assert MyController._stereotype_subtype == StereotypeType.CONTROLLER
         assert MyController.__mitsuki_base_path__ == "/api"
 
     def test_rest_controller_decorator(self):
@@ -52,8 +52,7 @@ class TestControllerRegistration:
         class UserController:
             pass
 
-        assert hasattr(UserController, "__mitsuki_controller__")
-        assert UserController.__mitsuki_controller__ is True
+        assert UserController._stereotype_subtype == StereotypeType.CONTROLLER
         assert UserController.__mitsuki_base_path__ == "/api/users"
 
     def test_controller_without_path(self):
@@ -294,7 +293,7 @@ class TestRouterAlias:
             async def hello(self):
                 return "world"
 
-        assert hasattr(TestRouter, "__mitsuki_controller__")
+        assert TestRouter._stereotype_subtype == StereotypeType.CONTROLLER
         assert TestRouter.__mitsuki_base_path__ == "/api/test"
 
     def test_rest_router_alias(self):
@@ -306,5 +305,5 @@ class TestRouterAlias:
             async def get_all(self):
                 return []
 
-        assert hasattr(ItemRouter, "__mitsuki_controller__")
+        assert ItemRouter._stereotype_subtype == StereotypeType.CONTROLLER
         assert ItemRouter.__mitsuki_base_path__ == "/api/items"

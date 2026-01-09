@@ -1,6 +1,7 @@
 import inspect
 
 from mitsuki.core.container import get_container
+from mitsuki.core.decorators import Component
 from mitsuki.core.enums import Scope
 
 
@@ -40,7 +41,6 @@ def initialize_configuration_providers():
                 provider_instance = method()
 
                 # Create a unique wrapper class for this provider to avoid type collisions
-                # (multiple providers might return the same type like str, int, etc.)
                 provider_wrapper_class = type(
                     f"__Provider_{provider_name}",
                     (),
@@ -50,10 +50,9 @@ def initialize_configuration_providers():
                     },
                 )
 
-                # Register the wrapper class in the container
-                container.register(
-                    provider_wrapper_class, name=provider_name, scope=provider_scope
-                )
+                provider_wrapper_class = Component(
+                    name=provider_name, scope=provider_scope
+                )(provider_wrapper_class)
 
                 # Store the provider instance (not the wrapper) if singleton
                 if provider_scope == Scope.SINGLETON:

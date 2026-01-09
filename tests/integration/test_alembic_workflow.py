@@ -2,6 +2,7 @@ import os
 import shutil
 import sqlite3
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -25,7 +26,7 @@ class TestAlembicWorkflowIntegration:
         """Helper to run mitsuki init command."""
         inputs = f"{project_name}\nTest app\nsqlite\ny\nPost\nn\ny\n"
         result = subprocess.run(
-            ["python3", "-m", "mitsuki.cli.bootstrap", "init"],
+            [sys.executable, "-m", "mitsuki.cli.bootstrap", "init"],
             input=inputs,
             capture_output=True,
             text=True,
@@ -331,7 +332,7 @@ class TestAlembicWorkflowIntegration:
 
         result = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 "-c",
                 "from test_import.src.domain import *; "
                 "from mitsuki.data.entity import _entity_registry; "
