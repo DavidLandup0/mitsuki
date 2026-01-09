@@ -11,6 +11,7 @@ from mitsuki import Configuration, Provider
 from mitsuki.config import ConfigurationProperties, Value, get_config
 from mitsuki.core.application import Application, ApplicationContext
 from mitsuki.core.container import DIContainer, get_container, set_container
+from mitsuki.core.enums import StereotypeType
 from mitsuki.core.providers import initialize_configuration_providers
 
 
@@ -219,8 +220,7 @@ class TestConfigurationClass:
             def my_provider(self) -> str:
                 return "provider_value"
 
-        assert hasattr(AppConfig, "__mitsuki_configuration__")
-        assert AppConfig.__mitsuki_configuration__ is True
+        assert AppConfig._stereotype_subtype == StereotypeType.CONFIGURATION
 
     def test_configuration_with_providers(self):
         """@Configuration should support @Provider methods."""

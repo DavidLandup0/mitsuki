@@ -4,7 +4,7 @@ import sys
 import threading
 from typing import Any, Dict, Optional, Set, Type, Union, get_type_hints
 
-from mitsuki.core.enums import Scope
+from mitsuki.core.enums import Scope, StereotypeType
 from mitsuki.exceptions import (
     CircularDependencyException,
     ComponentNotFoundException,
@@ -23,7 +23,6 @@ class ComponentMetadata:
         self.scope = Scope.from_string(scope) if isinstance(scope, str) else scope
         self.instance: Optional[Any] = None
         self.dependencies: Set[Type] = set()
-        self.is_configuration: bool = False
 
 
 class DIContainer:
@@ -47,10 +46,6 @@ class DIContainer:
         """Register a component class with the container."""
         component_name = name or cls.__name__
         metadata = ComponentMetadata(cls, component_name, scope)
-
-        # Mark if this is a configuration class
-        if hasattr(cls, "__mitsuki_configuration__"):
-            metadata.is_configuration = True
 
         # Analyze constructor dependencies
         sig = inspect.signature(cls.__init__)
@@ -181,7 +176,7 @@ class DIContainer:
         return [
             metadata
             for metadata in self._components.values()
-            if metadata.is_configuration
+            if metadata.cls._stereotype_subtype == StereotypeType.CONFIGURATION
         ]
 
     def clear(self):
@@ -225,30 +220,27 @@ def populate_container_from_decorators():
                 classes_found += 1
 
                 # Log if this class has component metadata
-                if hasattr(obj, "__mitsuki_component__"):
+                if obj._stereotype == StereotypeType.COMPONENT:
                     classes_with_metadata.append(f"{module_name}.{obj.__name__}")
                     logger.debug(f"Found decorated class: {module_name}.{obj.__name__}")
 
                 # Check for component/service decorator
-                if hasattr(obj, "__mitsuki_component__"):
-                    scope = getattr(obj, "__mitsuki_scope__", Scope.SINGLETON)
-                    component_name = (
-                        getattr(obj, "__mitsuki_name__", None) or obj.__name__
-                    )
+                scope = obj.__mitsuki_scope__
+                component_name = obj.__mitsuki_name__
 
-                    # Skip if already registered by name (not by class reference)
-                    # In spawn mode, same class can have different identities
-                    if container.has_by_name(component_name):
-                        logger.debug(
-                            f"Skipping {obj.__name__} - already registered by name '{component_name}'"
-                        )
-                        continue
-
-                    container.register(obj, name=component_name, scope=scope)
-                    registered_count += 1
+                # Skip if already registered by name (not by class reference)
+                # In spawn mode, same class can have different identities
+                if container.has_by_name(component_name):
                     logger.debug(
-                        f"Re-registered {obj.__name__} from {module_name} in worker container"
+                        f"Skipping {obj.__name__} - already registered by name '{component_name}'"
                     )
+                    continue
+
+                container.register(obj, name=component_name, scope=scope)
+                registered_count += 1
+                logger.debug(
+                    f"Re-registered {obj.__name__} from {module_name} in worker container"
+                )
 
             if classes_found > 0:
                 modules_scanned += 1
