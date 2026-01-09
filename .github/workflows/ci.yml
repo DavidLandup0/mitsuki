@@ -43,6 +43,6 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
-      run: uv sync
+      run: uv sync --extra dev
     - name: Run tests
-      run: coverage run -m pytest --cov=mitsuki .
+      run: uv run coverage run -m pytest --cov=mitsuki .
