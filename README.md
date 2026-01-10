@@ -16,7 +16,7 @@
 <hr>
 
 <div align="center">
-<p><strong>Enterprise patterns of Spring Boot, development speed and flexibility of Python. </strong></p>
+<p><strong>Spring Boot patterns, Python's development speed and flexibility.</strong></p>
 <p><strong>No compromises.</strong></p>
 </div>
 
