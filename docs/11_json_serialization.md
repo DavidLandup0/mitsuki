@@ -14,17 +14,18 @@ Mitsuki provides robust JSON serialization with support for Python types not nat
 
 ## Overview
 
-Mitsuki's JSON serialization module (`mitsuki.web.serialization`) automatically handles common Python types that the standard library cannot serialize:
+Mitsuki's JSON serialization module (`mitsuki.web.serialization`), mostly wraps around `msgspec` and automatically handles common Python types that the standard library cannot serialize:
 
 - `datetime`, `date`, `time` → ISO format strings
 - `UUID` → string
-- `Decimal` → float
+- `Decimal` → JSON number, at full precision
 - `Enum` → value
 - `dataclass` → dict
 - `bytes` → base64 string
 - `set`, `frozenset` → list
 - Custom objects with `__dict__` → dict
 
+Output is compact - no whitespace between keys and values unless you ask for indentation.
 
 ## Built-in Type Support
 
@@ -71,8 +72,15 @@ class ProductController:
     async def get_product(self):
         return {
             "name": "Widget",
-            "price": Decimal("19.99")  # → 19.99 (as float)
+            "price": Decimal("19.99")  # → 19.99
         }
+```
+
+`Decimal` is written as a JSON number and keeps its full precision, so values
+beyond the range of a float survive the round trip intact:
+
+```python
+Decimal("19.99999999999999999999")  # → 19.99999999999999999999
 ```
 
 ### Enum
@@ -166,7 +174,7 @@ data = {
 }
 
 json_string = serialize_json(data)
-# '{"timestamp": "2025-01-15T12:30:45.123456", "message": "Hello"}'
+# '{"timestamp":"2025-01-15T12:30:45.123456","message":"Hello"}'
 ```
 
 ### Pretty Printing
@@ -220,6 +228,22 @@ class ShapeController:
     async def get_geopoint(self):
         return GeoPoint(37.7749, -122.4194)  # → {"latitude": 37.7749, "longitude": -122.4194}
 ```
+
+### Overriding a Built-in Type
+
+Registered serializers take precedence over built-in handling, so you can also change how a built-in type is rendered - for example, to emit dates in a specific format:
+
+```python
+@Configuration
+class SerializationConfig:
+    @Provider(name="json_serializers")
+    def custom_serializers(self) -> Dict[Type, Callable[[Any], Any]]:
+        return {datetime: lambda d: d.strftime("%d/%m/%Y")}
+
+# datetime(2025, 1, 15) → "15/01/2025"
+```
+
+The override applies everywhere the value appears - nested inside lists, dicts and dataclasses, with or without indentation.
 
 ## Error Handling
 

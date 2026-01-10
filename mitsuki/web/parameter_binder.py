@@ -1,6 +1,6 @@
-import json
-from typing import Any, Optional, get_origin
+from typing import Any, Callable, List, Optional, Union
 
+import msgspec
 from starlette.requests import Request
 
 from mitsuki.core.enums import ParameterKind
@@ -9,274 +9,300 @@ from mitsuki.exceptions import (
     InvalidFileTypeException,
     RequestValidationException,
 )
+from mitsuki.web.converters import build_converter, decode_json, is_sequence_hint
 from mitsuki.web.multipart import parse_multipart
-from mitsuki.web.response_processor import ResponseProcessor
+
+_MISSING = object()
+
+Converter = Optional[Callable[[Any], Any]]
+Extractor = Callable[[Request, Any], Any]
 
 
-class ParameterBinder:
-    """Handles binding HTTP request data to handler parameters."""
+class ValueBinder(msgspec.Struct):
+    """
+    Reads one value from a single request source.
 
-    def __init__(self, max_body_size: int, max_file_size: int, max_request_size: int):
-        self.max_body_size = max_body_size
-        self.max_file_size = max_file_size
-        self.max_request_size = max_request_size
+    Path, query, header, form and unmarked parameters differ only in where the
+    raw value comes from, so they share this binder and supply an extractor.
+    """
 
-    async def bind_parameters(
-        self, request: Request, param_metadata: dict, route_meta: Any
-    ) -> dict:
-        """Build handler arguments from HTTP request."""
-        args = {}
-        path_params = request.path_params
-        query_params = dict(request.query_params)
+    param: str
+    source: str
+    extract: Extractor
+    required: bool
+    default: Any
+    converter: Converter
+    needs_form: bool = False
+    needs_body: bool = False
 
-        for param_name, metadata in param_metadata.items():
-            if metadata.kind == ParameterKind.REQUEST:
-                args[param_name] = request
-            elif metadata.kind == ParameterKind.PATH:
-                args[param_name] = self._bind_path_param(
-                    param_name, metadata, path_params
-                )
-            elif metadata.kind == ParameterKind.QUERY:
-                args[param_name] = self._bind_query_param(
-                    param_name, metadata, query_params
-                )
-            elif metadata.kind == ParameterKind.HEADER:
-                args[param_name] = self._bind_header_param(
-                    param_name, metadata, request
-                )
-            elif metadata.kind == ParameterKind.BODY:
-                args[param_name] = await self._bind_body_param(
-                    param_name, metadata, request, route_meta
-                )
-            elif metadata.kind == ParameterKind.FILE:
-                args[param_name] = await self._bind_file_param(
-                    param_name, metadata, request
-                )
-            elif metadata.kind == ParameterKind.FORM:
-                args[param_name] = await self._bind_form_param(
-                    param_name, metadata, request
-                )
-            elif metadata.kind == ParameterKind.AUTO:
-                args[param_name] = self._bind_auto_param(
-                    param_name, metadata, path_params, query_params
-                )
-
-        return args
-
-    def _bind_path_param(
-        self, param_name: str, metadata: Any, path_params: dict
-    ) -> Any:
-        """Bind path parameter."""
-        value = path_params.get(metadata.name or param_name)
-        if value is None and metadata.required:
-            raise RequestValidationException(
-                f"Required path parameter '{param_name}' not found"
-            )
-        if value is not None and metadata.param_type:
-            value = self._coerce_type(value, metadata.param_type)
-        return value
-
-    def _bind_query_param(
-        self, param_name: str, metadata: Any, query_params: dict
-    ) -> Any:
-        """Bind query parameter."""
-        value = query_params.get(metadata.name or param_name, metadata.default)
-        if value is None and metadata.required:
-            raise RequestValidationException(
-                f"Required query parameter '{param_name}' not found"
-            )
-        if value is not None and metadata.param_type:
-            value = self._coerce_type(value, metadata.param_type)
-        return value
-
-    def _bind_header_param(
-        self, param_name: str, metadata: Any, request: Request
-    ) -> Any:
-        """Bind header parameter."""
-        header_name = (metadata.name or param_name).lower()
-        value = request.headers.get(header_name, metadata.default)
-        if value is None and metadata.required:
-            raise RequestValidationException(
-                f"Required header '{param_name}' not found"
-            )
-        return value
-
-    async def _bind_body_param(
-        self, param_name: str, metadata: Any, request: Request, route_meta: Any
-    ) -> Any:
-        """Bind body parameter."""
-        content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > self.max_body_size:
-            raise RequestValidationException(
-                f"Request body too large (max {self.max_body_size} bytes)"
-            )
-
-        body_bytes = await request.body()
-
-        if body_bytes:
-            content_type = request.headers.get("content-type", "")
-            if content_type and not content_type.startswith("application/json"):
+    def bind(self, request: Request, form: Any, body: Any) -> Any:
+        value = self.extract(request, form)
+        if value is _MISSING:
+            if self.default is not None:
+                return self.default
+            if self.required:
                 raise RequestValidationException(
-                    f"Unsupported Content-Type: {content_type}. Expected application/json"
+                    f"Required {self.source} '{self.param}' not found"
                 )
+            return None
+        return self.converter(value) if self.converter else value
 
-        if body_bytes:
-            try:
-                body_data = json.loads(body_bytes)
 
-                # Validate against consumes_type if specified
-                consumes_type = route_meta.consumes_type if route_meta else None
-                if consumes_type:
-                    processor = ResponseProcessor()
-                    body_data = processor.validate_and_convert_input(
-                        body_data, consumes_type
-                    )
+class BodyBinder(msgspec.Struct):
+    """Decodes and validates the JSON request body."""
 
-                return body_data
-            except json.JSONDecodeError as e:
-                raise RequestValidationException(f"Invalid JSON in request body: {e}")
-        elif metadata.required:
-            raise RequestValidationException("Required request body not provided")
+    needs_form = False
+    needs_body = True
 
-        return None
+    param: str
+    required: bool
+    hint: Any
 
-    async def _bind_file_param(
-        self, param_name: str, metadata: Any, request: Request
-    ) -> Any:
-        """Bind file parameter."""
-        form_data = await self._get_form_data(request)
-        field_name = metadata.name or param_name
+    def bind(self, request: Request, form: Any, body: Any) -> Any:
+        if not body:
+            if self.required:
+                raise RequestValidationException("Required request body not provided")
+            return None
+        return decode_json(body, self.hint)
 
-        # Check if expecting multiple files (List[UploadFile])
-        if get_origin(metadata.param_type) is list:
-            files = form_data.get_files(field_name)
-            if not files and metadata.required:
-                raise RequestValidationException(
-                    f"Required file parameter '{param_name}' not found"
-                )
-            if files and metadata.allowed_types:
-                self._validate_file_types(files, metadata.allowed_types, param_name)
-            if files and metadata.max_size:
-                self._validate_file_sizes(files, metadata.max_size)
-            return files
+
+class FileBinder(msgspec.Struct):
+    """Reads one or more uploaded files from a multipart form."""
+
+    needs_form = True
+    needs_body = False
+
+    param: str
+    field: str
+    required: bool
+    multi: bool
+    allowed_types: Optional[list]
+    max_size: Optional[int]
+
+    def bind(self, request: Request, form: Any, body: Any) -> Any:
+        if self.multi:
+            files = form.get_files(self.field)
         else:
-            # Single file
-            file = form_data.get_file(field_name)
-            if not file and metadata.required:
+            single = form.get_file(self.field)
+            files = [single] if single else []
+
+        if not files:
+            if self.required:
                 raise RequestValidationException(
-                    f"Required file parameter '{param_name}' not found"
+                    f"Required file parameter '{self.param}' not found"
                 )
-            if file and metadata.allowed_types:
-                self._validate_file_type(file, metadata.allowed_types, param_name)
-            if file and metadata.max_size:
-                self._validate_file_size(file, metadata.max_size)
-            return file
+            return [] if self.multi else None
 
-    async def _bind_form_param(
-        self, param_name: str, metadata: Any, request: Request
-    ) -> Any:
-        """Bind form parameter."""
-        form_data = await self._get_form_data(request)
-        field_name = metadata.name or param_name
-        value = form_data.get_field(field_name)
+        for file in files:
+            if self.allowed_types and file.content_type not in self.allowed_types:
+                raise InvalidFileTypeException(
+                    f"File type {file.content_type} not allowed for '{self.param}'. "
+                    f"Allowed types: {self.allowed_types}"
+                )
+            if self.max_size and file.size > self.max_size:
+                raise FileTooLargeException(
+                    f"File {file.filename} exceeds maximum size {self.max_size} bytes"
+                )
 
-        if value is None:
-            value = metadata.default
-        if value is None and metadata.required:
+        return files if self.multi else files[0]
+
+
+def _from_path(field: str) -> Extractor:
+    return lambda request, form: request.path_params.get(field, _MISSING)
+
+
+def _from_query(field: str, multi: bool) -> Extractor:
+    if multi:
+        return lambda request, form: request.query_params.getlist(field) or _MISSING
+    return lambda request, form: request.query_params.get(field, _MISSING)
+
+
+def _from_header(field: str) -> Extractor:
+    return lambda request, form: request.headers.get(field, _MISSING)
+
+
+def _from_form(field: str, multi: bool) -> Extractor:
+    if multi:
+        return lambda request, form: form.get_fields(field) or _MISSING
+    return lambda request, form: (
+        value if (value := form.get_field(field)) is not None else _MISSING
+    )
+
+
+def _from_path_or_query(field: str) -> Extractor:
+    """Unmarked parameters prefer the path, then fall back to the query string."""
+
+    def extract(request: Request, form: Any) -> Any:
+        value = request.path_params.get(field, _MISSING)
+        if value is _MISSING:
+            return request.query_params.get(field, _MISSING)
+        return value
+
+    return extract
+
+
+class RequestLimits(msgspec.Struct):
+    """Size limits applied while reading a request."""
+
+    max_body_size: int
+    max_file_size: int
+    max_request_size: int
+
+
+def _is_json_content_type(content_type: str) -> bool:
+    """Accept application/json and its structured suffixes (e.g. +json)."""
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    return media_type.startswith("application/json") or media_type.endswith("+json")
+
+
+class BindingPlan:
+    """A prebuilt set of binders for one route."""
+
+    __slots__ = ("binders", "needs_form", "needs_body", "limits")
+
+    def __init__(self, binders: list, limits: RequestLimits):
+        self.binders = tuple(binders)
+        self.needs_form = any(binder.needs_form for binder in binders)
+        self.needs_body = any(binder.needs_body for binder in binders)
+        self.limits = limits
+
+    async def bind(self, request: Request) -> dict:
+        """Build handler arguments from an HTTP request."""
+        body = await self._read_body(request) if self.needs_body else None
+        form = await self._read_form(request) if self.needs_form else None
+
+        return {b.param: b.bind(request, form, body) for b in self.binders}
+
+    async def _read_body(self, request: Request) -> bytes:
+        """Read the body, enforcing the size limit even without Content-Length."""
+        max_size = self.limits.max_body_size
+        too_large = f"Request body too large (max {max_size} bytes)"
+
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > max_size:
+            raise RequestValidationException(too_large)
+
+        chunks = bytearray()
+        async for chunk in request.stream():
+            chunks += chunk
+            if len(chunks) > max_size:
+                raise RequestValidationException(too_large)
+
+        body = bytes(chunks)
+        # Populate Starlette's body cache so handlers and middleware that call
+        # request.body() later do not hit an already-consumed stream.
+        request._body = body
+
+        content_type = request.headers.get("content-type", "")
+        if body and content_type and not _is_json_content_type(content_type):
             raise RequestValidationException(
-                f"Required form parameter '{param_name}' not found"
+                f"Unsupported Content-Type: {content_type}. Expected application/json"
             )
-        if value is not None and metadata.param_type:
-            value = self._coerce_type(value, metadata.param_type)
-        return value
 
-    def _bind_auto_param(
-        self, param_name: str, metadata: Any, path_params: dict, query_params: dict
-    ) -> Optional[Any]:
-        """Bind auto parameter (tries path first, then query)."""
-        value = path_params.get(param_name) or query_params.get(param_name)
-        if value is not None and metadata.param_type:
-            value = self._coerce_type(value, metadata.param_type)
-        return value
+        return body
 
-    async def _get_form_data(self, request: Request):
-        """Get or parse multipart form data (cached in request state)."""
+    async def _read_form(self, request: Request):
+        """Parse the multipart body."""
         content_type = request.headers.get("content-type", "")
         if not content_type.startswith("multipart/form-data"):
             raise RequestValidationException("Expected multipart/form-data")
 
-        if not hasattr(request.state, "form_data"):
-            body_bytes = await request.body()
-            request.state.form_data = await parse_multipart(
-                content_type,
-                body_bytes,
-                max_file_size=self.max_file_size,
-                max_request_size=self.max_request_size,
+        return await parse_multipart(
+            content_type,
+            await request.body(),
+            max_file_size=self.limits.max_file_size,
+            max_request_size=self.limits.max_request_size,
+        )
+
+
+class ParameterBinder:
+    """Builds binding plans for routes."""
+
+    def __init__(self, max_body_size: int, max_file_size: int, max_request_size: int):
+        self.limits = RequestLimits(max_body_size, max_file_size, max_request_size)
+
+    def build_plan(self, param_metadata: dict, route_meta: Any) -> BindingPlan:
+        """Build the binding plan for a handler. Called once, at registration."""
+        consumes_type = route_meta.consumes_type if route_meta else None
+        binders = [
+            self._build_binder(param, metadata, consumes_type)
+            for param, metadata in param_metadata.items()
+        ]
+        return BindingPlan(binders, self.limits)
+
+    def _build_binder(self, param: str, metadata: Any, consumes_type: Optional[type]):
+        kind = metadata.kind
+        field = metadata.name or param
+        hint = metadata.param_type
+        converter = build_converter(hint)
+        multi = is_sequence_hint(hint)
+
+        if kind == ParameterKind.BODY:
+            if consumes_type:
+                # @Consumes wins over the annotation, and accepts either a single
+                # object or an array of them.
+                hint = Union[consumes_type, List[consumes_type]]
+            return BodyBinder(param, metadata.required, hint)
+
+        if kind == ParameterKind.FILE:
+            return FileBinder(
+                param,
+                field,
+                metadata.required,
+                multi,
+                metadata.allowed_types,
+                metadata.max_size,
             )
 
-        return request.state.form_data
-
-    def _validate_file_types(
-        self, files: list, allowed_types: list, param_name: str
-    ) -> None:
-        """Validate file types for multiple files."""
-        for file in files:
-            if file.content_type and file.content_type not in allowed_types:
-                raise InvalidFileTypeException(
-                    f"File type {file.content_type} not allowed for '{param_name}'. "
-                    f"Allowed types: {allowed_types}"
-                )
-
-    def _validate_file_type(
-        self, file: Any, allowed_types: list, param_name: str
-    ) -> None:
-        """Validate file type for single file."""
-        if file.content_type and file.content_type not in allowed_types:
-            raise InvalidFileTypeException(
-                f"File type {file.content_type} not allowed for '{param_name}'. "
-                f"Allowed types: {allowed_types}"
+        if kind == ParameterKind.REQUEST:
+            return ValueBinder(
+                param, "request", lambda request, form: request, False, None, None
             )
 
-    def _validate_file_sizes(self, files: list, max_size: int) -> None:
-        """Validate file sizes for multiple files."""
-        for file in files:
-            if file.size > max_size:
-                raise FileTooLargeException(
-                    f"File {file.filename} exceeds maximum size {max_size} bytes"
-                )
-
-    def _validate_file_size(self, file: Any, max_size: int) -> None:
-        """Validate file size for single file."""
-        if file.size > max_size:
-            raise FileTooLargeException(
-                f"File {file.filename} exceeds maximum size {max_size} bytes"
+        if kind == ParameterKind.PATH:
+            return ValueBinder(
+                param,
+                "path parameter",
+                _from_path(field),
+                metadata.required,
+                None,
+                converter,
             )
 
-    def _coerce_type(self, value: Any, target_type: type) -> Any:
-        """Coerce value to target type."""
-        if value is None or isinstance(value, target_type):
-            return value
-
-        if target_type is str:
-            return str(value)
-
-        try:
-            if target_type is int:
-                return int(value)
-            elif target_type is float:
-                return float(value)
-            elif target_type is bool:
-                if isinstance(value, bool):
-                    return value
-                if isinstance(value, str):
-                    if value.lower() in ("true", "1", "yes"):
-                        return True
-                    elif value.lower() in ("false", "0", "no"):
-                        return False
-                raise RequestValidationException(f"Cannot convert '{value}' to bool")
-            else:
-                return target_type(value)
-        except (ValueError, TypeError) as e:
-            raise RequestValidationException(
-                f"Cannot convert '{value}' to {target_type.__name__}: {e}"
+        if kind == ParameterKind.QUERY:
+            return ValueBinder(
+                param,
+                "query parameter",
+                _from_query(field, multi),
+                metadata.required,
+                metadata.default,
+                converter,
             )
+
+        if kind == ParameterKind.HEADER:
+            return ValueBinder(
+                param,
+                "header",
+                _from_header(field.lower()),
+                metadata.required,
+                metadata.default,
+                converter,
+            )
+
+        if kind == ParameterKind.FORM:
+            return ValueBinder(
+                param,
+                "form parameter",
+                _from_form(field, multi),
+                metadata.required,
+                metadata.default,
+                converter,
+                needs_form=True,
+            )
+
+        if kind == ParameterKind.AUTO:
+            return ValueBinder(
+                param, "parameter", _from_path_or_query(field), False, None, converter
+            )
+
+        raise ValueError(f"Unknown parameter kind '{kind}' for parameter '{param}'")
