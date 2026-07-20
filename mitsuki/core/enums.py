@@ -147,3 +147,4 @@ class StereotypeType(MitsukiEnum):
     CONTROLLER = "controller"
     PROVIDER = "provider"
     CONFIGURATION = "configuration"
+    INFRASTRUCTURE = "infrastructure"

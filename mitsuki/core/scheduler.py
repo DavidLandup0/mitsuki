@@ -7,6 +7,7 @@ import pytz
 from croniter import croniter
 
 from mitsuki.core.container import get_container
+from mitsuki.core.decorators import Infrastructure
 from mitsuki.core.logging import get_logger
 from mitsuki.core.metrics_core import MetricsStorage
 
@@ -74,6 +75,7 @@ class TaskStatistics:
         }
 
 
+@Infrastructure()
 class TaskScheduler:
     """Manages scheduled tasks for the application."""
 

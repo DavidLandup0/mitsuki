@@ -145,12 +145,25 @@ def Configuration(cls: Type) -> Type:
     Configuration class decorator.
     Marks a class as a configuration source for providers.
     """
-    # Ugly, but we need to set the sterotype subtype before regitering for Configurations, for now.
     _attach_component_metadata(cls, name=None, scope=Scope.SINGLETON)
     cls._stereotype_subtype = StereotypeType.CONFIGURATION
     _register_component(cls, name=None, scope=Scope.SINGLETON)
 
     return cls
+
+
+def Infrastructure(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGLETON):
+    """
+    Infrastructure component decorator.
+    Marks framework infrastructure classes that need to be registered before regular components.
+    """
+
+    def decorator(cls: Type) -> Type:
+        cls = Component(name=name, scope=scope)(cls)
+        cls._stereotype_subtype = StereotypeType.INFRASTRUCTURE
+        return cls
+
+    return decorator
 
 
 def Provider(

@@ -1,4 +1,4 @@
-from mitsuki import Application, GetMapping, RestController
+from mitsuki import Application, GetMapping, RestController, Instrumented
 
 
 @RestController()
@@ -9,6 +9,7 @@ class HelloController:
 
 
 @Application
+@Instrumented()
 class BenchmarkApp:
     pass
 

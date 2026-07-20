@@ -31,6 +31,9 @@ from mitsuki.core.enums import (
 from mitsuki.core.logging import get_logger
 from mitsuki.core.utils import get_active_profile
 
+# Instrumentation
+from mitsuki.core.instrumentation import Instrumented
+
 # Data
 from mitsuki.data import (
     UUID,
@@ -94,6 +97,7 @@ __all__ = [
     "DIContainer",
     "get_container",
     "get_active_profile",
+    "Instrumented",
     # Enums
     "ServerType",
     "DatabaseAdapter",

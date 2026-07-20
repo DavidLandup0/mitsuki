@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from mitsuki.core.decorators import Infrastructure
+
 
 @dataclass
 class MetricSample:
@@ -206,6 +208,7 @@ class Histogram:
             return result
 
 
+@Infrastructure()
 class MetricsStorage:
     """
     Central registry for all application metrics.

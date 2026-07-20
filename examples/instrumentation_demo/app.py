@@ -1,5 +1,4 @@
-from mitsuki import Application, Value
-from mitsuki.core.instrumentation import Instrumented
+from mitsuki import Application, Value, Instrumented
 
 
 @Instrumented()  # Enable instrumentation for all components

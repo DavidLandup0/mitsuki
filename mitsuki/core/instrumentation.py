@@ -8,10 +8,11 @@ from typing import Callable, Optional
 import psutil
 
 from mitsuki.core.container import get_container
-from mitsuki.core.decorators import Component
+from mitsuki.core.decorators import Component, Infrastructure
 from mitsuki.core.metrics_core import MetricsStorage
 
 
+@Infrastructure()
 class InstrumentationRegistry:
     """
     Instrumentation registry that uses core metrics.

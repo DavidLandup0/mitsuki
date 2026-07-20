@@ -37,9 +37,6 @@ class DIContainer:
         self._resolving = threading.local()  # Thread-local circular dependency tracking
         self._lock = threading.RLock()  # Reentrant lock for nested get() calls
 
-        # Register framework infrastructure
-        self._register_infrastructure()
-
     def register(
         self,
         cls: Type,
@@ -188,16 +185,6 @@ class DIContainer:
         self._components_by_name.clear()
         self._resolving.clear()
 
-    def _register_infrastructure(self):
-        """Register core framework services."""
-        from mitsuki.core.instrumentation import InstrumentationRegistry
-        from mitsuki.core.metrics_core import MetricsStorage
-        from mitsuki.core.scheduler import TaskScheduler
-
-        self.register(MetricsStorage)
-        self.register(TaskScheduler)
-        self.register(InstrumentationRegistry)
-
 
 # Global container instance
 _container: Optional[DIContainer] = None
@@ -213,8 +200,9 @@ def get_container() -> DIContainer:
 
 def populate_container_from_decorators():
     """
-    Populate the container from already-decorated classes.
+    Populate the container from decorated classes.
     Scans sys.modules for classes with decorator metadata and registers them.
+    Infrastructure components are registered first.
     """
     container = get_container()
     logger = logging.getLogger(__name__)
@@ -222,7 +210,9 @@ def populate_container_from_decorators():
     registered_count = 0
     modules_scanned = 0
     classes_with_metadata = []
+    components_to_register = []
 
+    # First pass: collect all components
     for module_name, module in list(sys.modules.items()):
         if not module or module_name.startswith("_"):
             continue
@@ -232,35 +222,46 @@ def populate_container_from_decorators():
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 classes_found += 1
 
-                # Log if this class has component metadata
-                if obj._stereotype == StereotypeType.COMPONENT:
-                    classes_with_metadata.append(f"{module_name}.{obj.__name__}")
-                    logger.debug(f"Found decorated class: {module_name}.{obj.__name__}")
-
-                # Check for component/service decorator
-                scope = obj.__mitsuki_scope__
-                component_name = obj.__mitsuki_name__
-
-                # Skip if already registered by name (not by class reference)
-                # In spawn mode, same class can have different identities
-                if container.has_by_name(component_name):
-                    logger.debug(
-                        f"Skipping {obj.__name__} - already registered by name '{component_name}'"
-                    )
+                if not hasattr(obj, '_stereotype'):
                     continue
 
-                container.register(obj, name=component_name, scope=scope)
-                registered_count += 1
-                logger.debug(
-                    f"Re-registered {obj.__name__} from {module_name} in worker container"
-                )
+                if obj._stereotype != StereotypeType.COMPONENT:
+                    continue
+
+                classes_with_metadata.append(f"{module_name}.{obj.__name__}")
+                logger.debug(f"Found decorated class: {module_name}.{obj.__name__}")
+
+                components_to_register.append({
+                    'cls': obj,
+                    'name': obj.__mitsuki_name__,
+                    'scope': obj.__mitsuki_scope__,
+                    'subtype': obj._stereotype_subtype,
+                    'module': module_name
+                })
 
             if classes_found > 0:
                 modules_scanned += 1
 
         except Exception as e:
-            # Skip modules that can't be inspected
             logger.debug(f"Couldn't inspect module {module_name}: {e}")
+
+    # Second pass: register infrastructure first, then others
+    infra_components = [c for c in components_to_register if c['subtype'] == StereotypeType.INFRASTRUCTURE]
+    regular_components = [c for c in components_to_register if c['subtype'] != StereotypeType.INFRASTRUCTURE]
+    all_comp = infra_components + regular_components
+
+    for component in all_comp:
+        if container.has_by_name(component['name']):
+            logger.debug(
+                f"Skipping {component['cls'].__name__} - already registered by name '{component['name']}'"
+            )
+            continue
+
+        container.register(component['cls'], name=component['name'], scope=component['scope'])
+        registered_count += 1
+        logger.debug(
+            f"Re-registered {component['cls'].__name__} from {component['module']} in worker container"
+        )
 
     logger.info(
         f"Scanned {modules_scanned} modules, found {len(classes_with_metadata)} classes with metadata, populated container with {registered_count} components"
