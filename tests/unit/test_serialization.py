@@ -10,13 +10,14 @@ from enum import Enum
 from typing import Any, Callable, Dict, Type
 from uuid import UUID, uuid4
 
+import pytest
+
 from mitsuki.config.properties import reload_config
 from mitsuki.core.container import DIContainer, get_container, set_container
 from mitsuki.core.decorators import Configuration, Provider
 from mitsuki.core.enums import Scope
 from mitsuki.core.providers import initialize_configuration_providers
 from mitsuki.web.serialization import (
-    MitsukiJSONEncoder,
     clear_custom_serializers,
     serialize_json,
     serialize_json_safe,
@@ -40,79 +41,91 @@ class CustomObject:
         self.value = value
 
 
-class TestMitsukiJSONEncoder:
-    """Tests for MitsukiJSONEncoder."""
+class TestTypeSerialization:
+    """Tests for serialization of types JSON does not natively support."""
 
     def test_serialize_datetime(self):
         """Test datetime serialization."""
         dt = datetime(2025, 1, 15, 12, 30, 45)
-        result = json.dumps(dt, cls=MitsukiJSONEncoder)
+        result = serialize_json(dt)
         assert result == '"2025-01-15T12:30:45"'
 
     def test_serialize_date(self):
         """Test date serialization."""
         d = date(2025, 1, 15)
-        result = json.dumps(d, cls=MitsukiJSONEncoder)
+        result = serialize_json(d)
         assert result == '"2025-01-15"'
 
     def test_serialize_time(self):
         """Test time serialization."""
         t = time(12, 30, 45)
-        result = json.dumps(t, cls=MitsukiJSONEncoder)
+        result = serialize_json(t)
         assert result == '"12:30:45"'
 
     def test_serialize_uuid(self):
         """Test UUID serialization."""
         u = UUID("12345678-1234-5678-1234-567812345678")
-        result = json.dumps(u, cls=MitsukiJSONEncoder)
+        result = serialize_json(u)
         assert result == '"12345678-1234-5678-1234-567812345678"'
 
     def test_serialize_decimal(self):
-        """Test Decimal serialization."""
+        """Test Decimal serialization - a JSON number, not a string."""
         d = Decimal("19.99")
-        result = json.dumps(d, cls=MitsukiJSONEncoder)
+        result = serialize_json(d)
         assert result == "19.99"
 
     def test_serialize_enum(self):
         """Test Enum serialization."""
         c = Color.RED
-        result = json.dumps(c, cls=MitsukiJSONEncoder)
+        result = serialize_json(c)
         assert result == '"red"'
 
     def test_serialize_dataclass(self):
         """Test dataclass serialization."""
         p = Person(name="Alice", age=30)
-        result = json.dumps(p, cls=MitsukiJSONEncoder)
+        result = serialize_json(p)
         parsed = json.loads(result)
         assert parsed == {"name": "Alice", "age": 30}
 
     def test_serialize_bytes(self):
         """Test bytes serialization."""
         b = b"hello"
-        result = json.dumps(b, cls=MitsukiJSONEncoder)
+        result = serialize_json(b)
         # base64 encoded "hello" is "aGVsbG8="
         assert result == '"aGVsbG8="'
 
     def test_serialize_set(self):
         """Test set serialization."""
         s = {1, 2, 3}
-        result = json.dumps(s, cls=MitsukiJSONEncoder)
+        result = serialize_json(s)
         parsed = json.loads(result)
         assert sorted(parsed) == [1, 2, 3]
 
     def test_serialize_frozenset(self):
         """Test frozenset serialization."""
         fs = frozenset([1, 2, 3])
-        result = json.dumps(fs, cls=MitsukiJSONEncoder)
+        result = serialize_json(fs)
         parsed = json.loads(result)
         assert sorted(parsed) == [1, 2, 3]
 
     def test_serialize_object_with_dict(self):
         """Test custom object with __dict__ fallback."""
         obj = CustomObject(value=42)
-        result = json.dumps(obj, cls=MitsukiJSONEncoder)
+        result = serialize_json(obj)
         parsed = json.loads(result)
         assert parsed == {"value": 42}
+
+    def test_serialize_object_without_dict_raises(self):
+        """Objects with no __dict__ cannot be serialized."""
+
+        class Slotted:
+            __slots__ = ("value",)
+
+            def __init__(self, value):
+                self.value = value
+
+        with pytest.raises(TypeError):
+            serialize_json(Slotted(1))
 
     def test_serialize_nested_structure(self):
         """Test nested structures with multiple types."""
@@ -142,7 +155,7 @@ class TestSerializeJson:
         """Test serializing simple dict."""
         data = {"message": "Hello, World!"}
         result = serialize_json(data)
-        # Parse and compare structure (orjson uses compact format without spaces)
+        # Parse and compare structure (output is compact, without spaces)
         assert json.loads(result) == data
 
     def test_serialize_with_indent(self):
@@ -178,7 +191,7 @@ class TestSerializeJsonSafe:
         """Test safe serialization of simple dict."""
         data = {"message": "Hello"}
         result = serialize_json_safe(data)
-        # Parse and compare structure (orjson uses compact format)
+        # Parse and compare structure (output is compact)
         assert json.loads(result) == data
 
     def test_safe_serialize_returns_fallback_on_error(self):
@@ -291,6 +304,64 @@ class TestCustomSerializers:
 
         assert parsed["point"] == [5, 10]
         assert parsed["circle"] == {"radius": 15}
+
+    def _register_datetime_override(self):
+        """Register a serializer for datetime, a type handled natively."""
+
+        @Configuration
+        class SerializationConfig:
+            @Provider(name="json_serializers")
+            def custom_serializers(self) -> Dict[Type, Callable[[Any], Any]]:
+                return {datetime: lambda d: d.strftime("%d/%m/%Y")}
+
+        container = get_container()
+        container.register(
+            SerializationConfig, name="SerializationConfig", scope=Scope.SINGLETON
+        )
+        initialize_configuration_providers()
+
+    def test_custom_serializer_overrides_builtin_type(self):
+        """A serializer for a built-in type wins over the default handling."""
+        self._register_datetime_override()
+
+        result = serialize_json({"when": datetime(2025, 1, 15)})
+
+        assert json.loads(result) == {"when": "15/01/2025"}
+
+    def test_builtin_override_applies_regardless_of_siblings(self):
+        """The override must not depend on what else is in the payload."""
+        self._register_datetime_override()
+
+        alone = json.loads(serialize_json({"when": datetime(2025, 1, 15)}))
+        with_decimal = json.loads(
+            serialize_json({"when": datetime(2025, 1, 15), "cost": Decimal("1.5")})
+        )
+        with_set = json.loads(
+            serialize_json({"when": datetime(2025, 1, 15), "tags": {"a"}})
+        )
+
+        assert alone["when"] == with_decimal["when"] == with_set["when"] == "15/01/2025"
+
+    def test_builtin_override_applies_with_indent(self):
+        """The override must apply to indented output too."""
+        self._register_datetime_override()
+
+        result = serialize_json({"when": datetime(2025, 1, 15)}, indent=2)
+
+        assert json.loads(result) == {"when": "15/01/2025"}
+
+    def test_builtin_override_applies_when_nested(self):
+        """The override must reach values inside lists and dataclasses."""
+        self._register_datetime_override()
+
+        @dataclass
+        class Event:
+            when: datetime
+
+        assert json.loads(serialize_json([datetime(2025, 1, 15)])) == ["15/01/2025"]
+        assert json.loads(serialize_json(Event(when=datetime(2025, 1, 15)))) == {
+            "when": "15/01/2025"
+        }
 
     def test_no_provider_uses_defaults(self):
         """Test that serialization works without custom provider."""

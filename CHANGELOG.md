@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-07-21
+
+### Parameter Binding Bug Fixes (by virtue of adopting msgspec over custom coercion)
+- **Expanded support for unannotated parameters.** such as `Optional[T]`, `List[T]`.
+- **Repeated query parameters are no longer mangled.** `?tag=a&tag=b` bound to `List[str]` used to keep only the last value.
+- **Body size limits hold for chunked requests.** `server.max_body_size` was only enforced when a `Content-Length` header was present, so a chunked request could bypass it entirely.
+- **Type coercion failures return 400, not 500.** Failures on typing generics escaped the handler that converts them to a client error.
+
+### Features
+- **Multi-value parameters**: `List[T]` on a query parameter or form field collects every repeated value, with elements coerced to `T`.
+- **Structured JSON media types**: content types with a `+json` suffix (such as `application/merge-patch+json`) are accepted for request bodies.
+
+### Serialization
+- **msgspec replaces hand-rolled type coercion and orjson.** `msgspec` now handles request decoding, validation, and response encoding. `orjson` is no longer a dependency. Response output is unchanged for every built-in type, with one improvement noted below.
+- **Custom serializers now override built-in types reliably.** A serializer registered for a type Mitsuki already handles (such as `datetime`) previously applied only when the payload also contained a value that could not be encoded on the fast path, so the same handler could render a value two different ways depending on its sibling fields. Registered serializers now always take precedence, including inside lists and dataclasses and when `indent` is used.
+- **`Decimal` keeps its full precision.** It was coerced to a float before encoding, so `Decimal("19.99999999999999999999")` was emitted as `20.0`. It is now written as an exact JSON number.
+- **Binding is resolved at route registration.** Parameter source, field name, converter, and multi-value handling are computed once when routes are built instead of at request-time.
+
+### Request Body Validation
+Request bodies were previously validated by calling the target dataclass with the decoded JSON. Dataclasses do not type-check their arguments, so only the *presence* of fields was ever checked. `msgspec` validates the types as well, which changes four behaviours:
+
+- **Field types are now enforced.**
+- **Unknown fields are ignored rather than rejected.** A body carrying a field the DTO does not declare previously returned a 400 - incidentally, as a `TypeError` from the dataclass constructor rather than by design. Such fields are now dropped,
+
+[0.1.5]: https://github.com/DavidLandup0/mitsuki/compare/v0.1.4...v0.1.5
+
 ## [0.1.4] - 2025-12-14
 
 ### Features

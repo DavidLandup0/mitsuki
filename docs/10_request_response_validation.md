@@ -159,12 +159,9 @@ Input validation ensures request data conforms to expected structures before pro
 
 ### What Happens
 
-When you specify input validation, request body data will be:
+When you specify input validation, request body data is parsed from JSON, validated and converted to the requested instance via `msgspec`.
 
-1. **Parsed from JSON** - Request body parsed to dict
-2. **Validated** - Checked against dataclass schema
-3. **Converted to instance** - Dict converted to dataclass instance
-4. **Passed to handler** - Handler receives typed dataclass, not dict
+**Fields the target type does not declare are ignored.** A body carrying extra keys is accepted and those keys are dropped.
 
 ### Basic Usage
 
@@ -191,6 +188,21 @@ class PostController:
         return {"id": post.id, "title": post.title}
 ```
 
+### Validating from the Type Hint Alone
+
+`consumes_type` and `@Consumes` are optional. If the `RequestBody()` parameter is annotated, the body is validated against that annotation:
+
+```python
+@Controller("/api/posts")
+class PostController:
+    @PostMapping("/")
+    async def create_post(self, data: CreatePostRequest = RequestBody()):
+        # Validated against CreatePostRequest, no decorator needed
+        return {"title": data.title}
+```
+
+Either form produces the same OpenAPI request body schema, since it is inferred from the annotation when no `consumes_type` is given. Use `consumes_type` or `@Consumes` when the parameter is unannotated, or when you want the validated type to differ from the annotation. When both are present, `consumes_type` wins.
+
 ### Validation with Default Values
 
 Dataclass default values are respected:
@@ -214,7 +226,10 @@ Invalid input raises clear `RequestValidationException` exceptions:
 
 ```python
 # Request body: {"title": "Post Title"}  # Missing required 'content' field
-# Raises: RequestValidationException("Failed to validate input against CreatePostRequest: ...")
+# Raises: RequestValidationException("Invalid request body: Object missing required field `content`")
+
+# Request body: {"title": "Post Title", "content": 5}  # Wrong type
+# Raises: RequestValidationException("Invalid request body: Expected `str`, got `int` - at `$.content`")
 ```
 
 ### List Validation

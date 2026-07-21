@@ -131,7 +131,6 @@ def _parse_multipart(body: bytes, boundary: bytes) -> List[Dict]:
     """
     parts = []
     boundary_delimiter = b"--" + boundary
-    end_boundary = boundary_delimiter + b"--"
 
     # Split by boundary
     sections = body.split(boundary_delimiter)

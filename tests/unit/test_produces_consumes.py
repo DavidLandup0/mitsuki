@@ -5,10 +5,21 @@ Tests for @Produces and @Consumes decorators.
 from dataclasses import dataclass
 
 import pytest
+from starlette.testclient import TestClient
 
+from mitsuki import RequestBody, RestController
+from mitsuki.core.container import DIContainer, set_container
+from mitsuki.core.server import MitsukiASGIApp
 from mitsuki.exceptions import RequestValidationException
 from mitsuki.web.mappings import Consumes, GetMapping, PostMapping, Produces
 from mitsuki.web.response_processor import ResponseProcessor
+
+
+@pytest.fixture(autouse=True)
+def clean_container():
+    set_container(DIContainer())
+    yield
+    set_container(DIContainer())
 
 
 @dataclass
@@ -147,57 +158,66 @@ class TestProducesConsumesIntegration:
 
 
 class TestInputValidation:
-    """Tests for input validation with @Consumes."""
+    """Tests for input validation with @Consumes, over the real request path."""
 
-    def setup_method(self):
-        """Setup test fixtures."""
-        self.processor = ResponseProcessor()
+    def build_client(self):
+        @RestController("/api")
+        class InputController:
+            @Consumes(TestInputDTO)
+            @PostMapping("/input")
+            async def receive(self, payload=RequestBody()) -> dict:
+                if isinstance(payload, list):
+                    return {"names": [item.name for item in payload]}
+                return {"name": payload.name, "age": payload.age}
+
+        context = MockContext()
+        context.controllers = [(InputController, "/api")]
+        return TestClient(MitsukiASGIApp(context))
 
     def test_validate_dict_to_dataclass_input(self):
         """Test validating dict input against dataclass."""
-        data = {"name": "John", "email": "john@example.com", "age": 25}
-        result = self.processor.validate_and_convert_input(data, TestInputDTO)
+        response = self.build_client().post(
+            "/api/input",
+            json={"name": "John", "email": "john@example.com", "age": 25},
+        )
 
-        assert isinstance(result, TestInputDTO)
-        assert result.name == "John"
-        assert result.email == "john@example.com"
-        assert result.age == 25
+        assert response.status_code == 200
+        assert response.json() == {"name": "John", "age": 25}
 
     def test_validate_dict_to_dataclass_with_defaults(self):
         """Test validation uses default values from dataclass."""
-        data = {"name": "John", "email": "john@example.com"}
-        result = self.processor.validate_and_convert_input(data, TestInputDTO)
+        response = self.build_client().post(
+            "/api/input", json={"name": "John", "email": "john@example.com"}
+        )
 
-        assert isinstance(result, TestInputDTO)
-        assert result.age == 18  # default value
+        assert response.status_code == 200
+        assert response.json()["age"] == 18  # default value
 
     def test_validate_input_missing_required_field(self):
         """Test validation fails when required field is missing."""
-        data = {"name": "John"}  # Missing required email field
-        with pytest.raises(
-            RequestValidationException, match="Failed to validate input"
-        ):
-            self.processor.validate_and_convert_input(data, TestInputDTO)
+        response = self.build_client().post("/api/input", json={"name": "John"})
+
+        assert response.status_code == 400
+        assert "email" in response.json()["error"]
 
     def test_validate_input_list_of_dicts(self):
         """Test validating list of dictionaries."""
-        data = [
-            {"name": "John", "email": "john@example.com", "age": 25},
-            {"name": "Jane", "email": "jane@example.com", "age": 30},
-        ]
-        result = self.processor.validate_and_convert_input(data, TestInputDTO)
+        response = self.build_client().post(
+            "/api/input",
+            json=[
+                {"name": "John", "email": "john@example.com", "age": 25},
+                {"name": "Jane", "email": "jane@example.com", "age": 30},
+            ],
+        )
 
-        assert isinstance(result, list)
-        assert len(result) == 2
-        assert all(isinstance(item, TestInputDTO) for item in result)
-        assert result[0].name == "John"
-        assert result[1].name == "Jane"
+        assert response.status_code == 200
+        assert response.json() == {"names": ["John", "Jane"]}
 
     def test_validate_input_wrong_type(self):
         """Test validation fails with wrong input type."""
-        data = "not a dict"
-        with pytest.raises(RequestValidationException, match="Input validation failed"):
-            self.processor.validate_and_convert_input(data, TestInputDTO)
+        response = self.build_client().post("/api/input", json="not a dict")
+
+        assert response.status_code == 400
 
 
 class TestOutputValidation:

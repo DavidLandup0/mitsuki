@@ -1,14 +1,12 @@
-import base64
-import json
 import logging
-from dataclasses import asdict, is_dataclass
+from dataclasses import fields, is_dataclass
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Callable, Dict, Type
 from uuid import UUID
 
-import orjson
+import msgspec
 
 from mitsuki.core.container import get_container
 
@@ -18,60 +16,62 @@ logger = logging.getLogger(__name__)
 _custom_serializers: Dict[Type, Callable[[Any], Any]] = {}
 _serializers_loaded = False
 
+# Types msgspec encodes on its own. A custom serializer for one of these has to
+# be applied before encoding, because the encode hook is only consulted for
+# types msgspec cannot handle.
+_NATIVELY_ENCODED = (
+    datetime,
+    date,
+    time,
+    UUID,
+    Decimal,
+    bytes,
+    bytearray,
+    set,
+    frozenset,
+    Enum,
+)
 
-# Built-in type handlers
-def _serialize_datetime(obj: datetime) -> str:
-    return obj.isoformat()
-
-
-def _serialize_date(obj: date) -> str:
-    return obj.isoformat()
-
-
-def _serialize_time(obj: time) -> str:
-    return obj.isoformat()
-
-
-def _serialize_uuid(obj: UUID) -> str:
-    return str(obj)
-
-
-def _serialize_decimal(obj: Decimal) -> float:
-    return float(obj)
-
-
-def _serialize_enum(obj: Enum) -> Any:
-    return obj.value
+# True when a registered serializer targets a natively encoded type, which is
+# the only case that needs the pre-pass below.
+_overrides_native = False
 
 
-def _serialize_dataclass(obj: Any) -> dict:
-    return asdict(obj)
+def _refresh_override_flag():
+    """Record whether any serializer overrides a natively encoded type."""
+    global _overrides_native
+
+    _overrides_native = any(
+        issubclass(type_, _NATIVELY_ENCODED) or is_dataclass(type_)
+        for type_ in _custom_serializers
+    )
 
 
-def _serialize_bytes(obj: bytes) -> str:
-    return base64.b64encode(obj).decode("utf-8")
+def _apply_custom_serializers(obj: Any) -> Any:
+    """
+    Apply custom serializers ahead of encoding.
 
+    Only used when a serializer targets a type msgspec would otherwise encode
+    itself, so that a registered serializer always wins over the built-in
+    handling regardless of what else is in the payload.
+    """
+    serializer = _custom_serializers.get(type(obj))
+    if serializer:
+        return serializer(obj)
 
-def _serialize_set(obj: set) -> list:
-    return list(obj)
+    if isinstance(obj, dict):
+        return {key: _apply_custom_serializers(value) for key, value in obj.items()}
 
+    if isinstance(obj, (list, tuple, set, frozenset)):
+        return [_apply_custom_serializers(value) for value in obj]
 
-def _serialize_frozenset(obj: frozenset) -> list:
-    return list(obj)
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return {
+            field.name: _apply_custom_serializers(getattr(obj, field.name))
+            for field in fields(obj)
+        }
 
-
-# Type handler registry
-_TYPE_HANDLERS: Dict[Type, Callable] = {
-    datetime: _serialize_datetime,
-    date: _serialize_date,
-    time: _serialize_time,
-    UUID: _serialize_uuid,
-    Decimal: _serialize_decimal,
-    Enum: _serialize_enum,
-    bytes: _serialize_bytes,
-    set: _serialize_set,
-    frozenset: _serialize_frozenset,
-}
+    return obj
 
 
 def _load_custom_serializers():
@@ -94,58 +94,33 @@ def _load_custom_serializers():
         # Container not initialized or not available - this is fine
         pass
 
+    _refresh_override_flag()
     _serializers_loaded = True
 
 
-class MitsukiJSONEncoder(json.JSONEncoder):
+def _encode_unsupported(obj: Any) -> Any:
     """
-    Custom JSON encoder that handles common Python types not supported by default.
+    Convert a value msgspec cannot encode natively.
 
-    Supports:
-    - datetime, date, time -> ISO format strings
-    - UUID -> string
-    - Decimal -> float
-    - Enum -> value
-    - dataclass -> dict
-    - bytes -> base64 string
-    - set, frozenset -> list
-    - Custom registered types
+    vars() raises TypeError for objects without a __dict__, which is what
+    msgspec expects from an encode hook that cannot handle the value.
     """
+    _load_custom_serializers()
 
-    def default(self, obj: Any) -> Any:
-        """Convert obj to a JSON-serializable type."""
+    serializer = _custom_serializers.get(type(obj))
+    if serializer:
+        return serializer(obj)
 
-        # Load custom serializers from container on first use
-        _load_custom_serializers()
+    return vars(obj)
 
-        # Check custom serializers first
-        obj_type = type(obj)
-        if obj_type in _custom_serializers:
-            return _custom_serializers[obj_type](obj)
 
-        # Check built-in type handlers
-        if obj_type in _TYPE_HANDLERS:
-            return _TYPE_HANDLERS[obj_type](obj)
-
-        # Handle Enum subclasses (check isinstance since Enum is base class)
-        if isinstance(obj, Enum):
-            return obj.value
-
-        # Handle dataclass
-        if is_dataclass(obj):
-            return _serialize_dataclass(obj)
-
-        # Fallback: try __dict__ for custom objects
-        if hasattr(obj, "__dict__"):
-            return obj.__dict__
-
-        # Let json.JSONEncoder raise TypeError
-        return super().default(obj)
+# decimal_format="number" keeps Decimal as a JSON number rather than a string.
+_encoder = msgspec.json.Encoder(decimal_format="number", enc_hook=_encode_unsupported)
 
 
 def serialize_json(data: Any, indent: int = None) -> str:
     """
-    Serialize data to JSON string using orjson with fallback to MitsukiJSONEncoder.
+    Serialize data to a JSON string.
 
     Args:
         data: Data to serialize
@@ -157,22 +132,22 @@ def serialize_json(data: Any, indent: int = None) -> str:
     Raises:
         TypeError: If data contains non-serializable objects
     """
-    try:
-        if indent is None:
-            # orjson.dumps returns bytes, decode to str
-            return orjson.dumps(data).decode("utf-8")
-        else:
-            # orjson doesn't support indent, fall back to stdlib
-            return json.dumps(data, cls=MitsukiJSONEncoder, indent=indent)
-    except (TypeError, ValueError):
-        # Fallback to custom encoder for types orjson doesn't handle
-        return json.dumps(data, cls=MitsukiJSONEncoder, indent=indent)
+    _load_custom_serializers()
+
+    if _overrides_native:
+        data = _apply_custom_serializers(data)
+
+    encoded = _encoder.encode(data)
+
+    if indent is not None:
+        encoded = msgspec.json.format(encoded, indent=indent)
+
+    return encoded.decode("utf-8")
 
 
 def serialize_json_safe(data: Any, indent: int = None) -> str:
     """
-    Serialize data to JSON string with error handling.
-    Catches serialization errors and returns a fallback response.
+    Serialize data to a JSON string, returning a fallback on failure.
 
     Args:
         data: Data to serialize
@@ -183,14 +158,14 @@ def serialize_json_safe(data: Any, indent: int = None) -> str:
     """
     try:
         return serialize_json(data, indent=indent)
-    except (TypeError, ValueError) as e:
+    except (TypeError, ValueError, RecursionError) as e:
         logger.error(f"JSON serialization failed: {e}", exc_info=True)
-        # Return a safe fallback
-        return json.dumps({"error": "Serialization failed"})
+        return '{"error": "Serialization failed"}'
 
 
 def clear_custom_serializers() -> None:
     """Clear all registered custom serializers and reset load flag. For testing only."""
     global _serializers_loaded
     _custom_serializers.clear()
+    _refresh_override_flag()
     _serializers_loaded = False
