@@ -145,7 +145,7 @@ The example uses the following configuration in `application.yml`:
 ```yaml
 instrumentation:
   enabled: true        # Enable instrumentation
-  track_memory: true   # Track memory with tracemalloc
+  track_memory: false  # CPU/memory sampling via tracemalloc; off by default
 
 metrics:
   enabled: true

@@ -1,18 +1,19 @@
 from functools import wraps
-from typing import Callable, Optional, Type, Union
+from typing import Callable, List, Optional, Type, Union
 
 from mitsuki.core.container import get_container
 from mitsuki.core.enums import Scope, StereotypeType
 
 
-def _maybe_auto_instrument(cls: Type):
-    """Auto-instrument component if not already instrumented."""
-    if "_instrumented_decorator_applied" in cls.__dict__:
-        return
+# Components eligible for instrumentation, collected as stereotype decorators
+# run at import time. Instrumentation is applied at startup by
+# mitsuki.core.instrumentation.apply_instrumentation.
+_instrumentable_components: List[Type] = []
 
-    from mitsuki.core.instrumentation import _apply_instrumentation
 
-    _apply_instrumentation(cls)
+def _register_instrumentable(cls: Type):
+    """Record a component as a candidate for instrumentation."""
+    _instrumentable_components.append(cls)
 
 
 def Scheduled(
@@ -110,8 +111,7 @@ def Service(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGLET
         cls = Component(name=name, scope=scope)(cls)
         cls._stereotype_subtype = StereotypeType.SERVICE
 
-        # Auto-instrument if application has @Instrumented
-        _maybe_auto_instrument(cls)
+        _register_instrumentable(cls)
 
         return cls
 
@@ -132,8 +132,7 @@ def Repository(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SING
         cls = Component(name=name, scope=scope)(cls)
         cls._stereotype_subtype = StereotypeType.REPOSITORY
 
-        # Auto-instrument if application has @Instrumented
-        _maybe_auto_instrument(cls)
+        _register_instrumentable(cls)
 
         return cls
 
@@ -150,20 +149,6 @@ def Configuration(cls: Type) -> Type:
     _register_component(cls, name=None, scope=Scope.SINGLETON)
 
     return cls
-
-
-def Infrastructure(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGLETON):
-    """
-    Infrastructure component decorator.
-    Marks framework infrastructure classes that need to be registered before regular components.
-    """
-
-    def decorator(cls: Type) -> Type:
-        cls = Component(name=name, scope=scope)(cls)
-        cls._stereotype_subtype = StereotypeType.INFRASTRUCTURE
-        return cls
-
-    return decorator
 
 
 def Provider(

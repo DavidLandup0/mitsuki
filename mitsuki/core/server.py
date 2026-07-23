@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 import logging
 from contextlib import asynccontextmanager
@@ -15,6 +14,7 @@ from mitsuki.core.container import get_container
 from mitsuki.core.instrumentation import (
     InstrumentationMiddleware,
     InstrumentationRegistry,
+    build_route_map,
 )
 from mitsuki.core.logging import get_granian_log_config
 from mitsuki.core.scheduler import get_scheduler
@@ -61,7 +61,7 @@ class MitsukiASGIApp:
         routes = route_builder.build_routes()
 
         # Build middleware stack
-        middleware = self._build_middleware()
+        middleware = self._build_middleware(routes)
 
         # Create ASGI app with lifespan context manager
         self.app = Starlette(
@@ -80,34 +80,19 @@ class MitsukiASGIApp:
         scheduler = get_scheduler()
         await scheduler.start()
 
-        # Start instrumentation background tasks if enabled
-        config = get_config()
-        if config.get_bool("instrumentation.enabled"):
-            registry = get_container().get(InstrumentationRegistry)
-            if registry.enabled and not registry._background_task:
-                try:
-                    registry._background_task = asyncio.create_task(
-                        registry._collect_system_metrics()
-                    )
-                except Exception:
-                    pass
+        instrumented = get_config().get_bool("instrumentation.enabled")
+        registry = (
+            get_container().get(InstrumentationRegistry) if instrumented else None
+        )
+        if registry:
+            registry.start_background_collection()
 
         yield
 
         # Shutdown
         await scheduler.stop()
-
-        # Stop instrumentation background tasks
-        if config.get_bool("instrumentation.enabled"):
-            from mitsuki.core.instrumentation import InstrumentationRegistry
-
-            registry = get_container().get(InstrumentationRegistry)
-            if registry._background_task:
-                registry._background_task.cancel()
-                try:
-                    await registry._background_task
-                except:
-                    pass
+        if registry:
+            registry.stop_background_collection()
 
         # Disconnect database
         try:
@@ -120,7 +105,7 @@ class MitsukiASGIApp:
             # throws an exception.
             pass
 
-    def _build_middleware(self) -> List[Middleware]:
+    def _build_middleware(self, routes) -> List[Middleware]:
         """Build middleware stack."""
         middleware = []
 
@@ -128,7 +113,13 @@ class MitsukiASGIApp:
         config = get_config()
         if config.get_bool("instrumentation.enabled"):
             registry = get_container().get(InstrumentationRegistry)
-            middleware.append(Middleware(InstrumentationMiddleware, registry=registry))
+            middleware.append(
+                Middleware(
+                    InstrumentationMiddleware,
+                    registry=registry,
+                    routes=build_route_map(routes),
+                )
+            )
 
         # CORS middleware
         if self.cors_enabled:

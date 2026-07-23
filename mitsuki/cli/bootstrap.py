@@ -4,6 +4,7 @@ import click
 
 from mitsuki.core.enums import DatabaseDialect
 from mitsuki.core.logging import get_logger
+from mitsuki.grafana import write_dashboard
 
 logger = get_logger()
 
@@ -261,6 +262,20 @@ def init():
         click.echo(f"  cd {app_name}")
         click.echo("  alembic revision --autogenerate -m 'initial schema'")
         click.echo("  alembic upgrade head")
+
+
+@cli.command("grafana-dashboard")
+@click.option(
+    "-o",
+    "--output",
+    default=".",
+    type=click.Path(path_type=Path),
+    help="Directory or file to write the dashboard to.",
+)
+def grafana_dashboard(output: Path):
+    """Write the bundled Grafana dashboard for Mitsuki metrics."""
+    written = write_dashboard(output)
+    click.echo(f"Wrote Grafana dashboard to {written}")
 
 
 def main():

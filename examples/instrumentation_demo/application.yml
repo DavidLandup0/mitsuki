@@ -12,15 +12,16 @@ database:
 
 instrumentation:
   enabled: true
-  track_memory: true
+  track_memory: false
 
 metrics:
   enabled: true
   path: /metrics
   # Allow access from:
+  # - Localhost (127.0.0.1) - for running the app directly, outside Docker
   # - Docker internal network range (172.16.0.0/12) - i.e. 172.16.0.0 to 172.31.255.255
   # - Local network range (192.168.0.0/16)
-  allowed_ips: ["172.16.0.0/12", "192.168.0.0/16"]  # Empty list = allow all. For production, specify your network ranges.
+  allowed_ips: ["127.0.0.1", "172.16.0.0/12", "192.168.0.0/16"]  # Empty list = allow all. For production, specify your network ranges.
 
 scheduler:
   enabled: true

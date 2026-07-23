@@ -1,4 +1,5 @@
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from mitsuki.core.metrics_core import MetricsStorage
@@ -14,11 +15,11 @@ def format_json(registry: MetricsStorage) -> Dict[str, Any]:
     - Timestamps
     """
     if not registry.enabled:
-        return {"enabled": False, "timestamp": datetime.utcnow().isoformat()}
+        return {"enabled": False, "timestamp": datetime.now(timezone.utc).isoformat()}
 
     result = {
         "enabled": True,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     # Scheduler metrics (if any exist)
@@ -124,17 +125,24 @@ def _extract_system_metrics(registry: MetricsStorage) -> Dict[str, Any]:
 
     memory_gauge = registry.gauges["system_memory_bytes"]
     cpu_gauge = registry.gauges.get("system_cpu_percent")
+    traced_gauge = registry.gauges.get("system_traced_memory_bytes")
 
     memory_rss = memory_gauge.get({"type": "rss"})
     memory_vms = memory_gauge.get({"type": "vms"})
 
+    memory = {
+        "rss_bytes": int(memory_rss),
+        "rss_mb": round(memory_rss / (1024 * 1024), 2),
+        "vms_bytes": int(memory_vms),
+        "vms_mb": round(memory_vms / (1024 * 1024), 2),
+    }
+
+    if traced_gauge:
+        memory["traced_current_bytes"] = int(traced_gauge.get({"type": "current"}))
+        memory["traced_peak_bytes"] = int(traced_gauge.get({"type": "peak"}))
+
     return {
-        "memory": {
-            "rss_bytes": int(memory_rss),
-            "rss_mb": round(memory_rss / (1024 * 1024), 2),
-            "vms_bytes": int(memory_vms),
-            "vms_mb": round(memory_vms / (1024 * 1024), 2),
-        },
+        "memory": memory,
         "cpu": {"percent": round(cpu_gauge.get(), 2) if cpu_gauge else 0.0},
     }
 
@@ -189,39 +197,62 @@ def _extract_component_metrics(registry: MetricsStorage) -> Dict[str, Any]:
     calls_counter = registry.counters["component_calls_total"]
     duration_hist = registry.histograms.get("component_duration_seconds")
 
-    components = {}
-    component_names = set()
-
-    # Collect component names
+    # Calls are labelled by component and method, so totals are aggregated
+    # across every method belonging to a component.
+    calls_by_method = defaultdict(float)
     for sample in calls_counter.samples():
         component = sample.labels.get("component")
         if component:
-            component_names.add(component)
+            calls_by_method[(component, sample.labels.get("method", ""))] += (
+                sample.value
+            )
 
-    # Build component stats
-    for component_name in sorted(component_names):
-        component_labels = {"component": component_name}
+    duration_by_method = defaultdict(lambda: [0.0, 0])
+    if duration_hist:
+        for labels, total_sum, total_count, _ in duration_hist.samples():
+            component = labels.get("component")
+            if component:
+                entry = duration_by_method[(component, labels.get("method", ""))]
+                entry[0] += total_sum
+                entry[1] += total_count
 
-        # Calls (sum success + failure)
-        success_count = calls_counter.get(
-            {"component": component_name, "status": "success"}
+    components = {}
+    for component_name in sorted({key[0] for key in calls_by_method}):
+        methods = {}
+        total_calls = 0.0
+        component_sum = 0.0
+        component_count = 0
+
+        method_names = sorted(
+            key[1] for key in calls_by_method if key[0] == component_name
         )
-        failure_count = calls_counter.get(
-            {"component": component_name, "status": "failure"}
-        )
-        total_calls = success_count + failure_count
+        for method_name in method_names:
+            method_calls = calls_by_method[(component_name, method_name)]
+            method_sum, method_count = duration_by_method[
+                (component_name, method_name)
+            ]
 
-        # Duration
-        avg_duration_ms = None
-        if duration_hist:
-            duration_sum = duration_hist.get_sum(component_labels)
-            duration_count = duration_hist.get_count(component_labels)
-            if duration_count > 0:
-                avg_duration_ms = round((duration_sum / duration_count) * 1000, 2)
+            total_calls += method_calls
+            component_sum += method_sum
+            component_count += method_count
+
+            methods[method_name] = {
+                "calls": int(method_calls),
+                "avg_duration_ms": round((method_sum / method_count) * 1000, 2)
+                if method_count > 0
+                else None,
+            }
+
+        avg_duration_ms = (
+            round((component_sum / component_count) * 1000, 2)
+            if component_count > 0
+            else None
+        )
 
         components[component_name] = {
             "calls": int(total_calls),
             "avg_duration_ms": avg_duration_ms,
+            "methods": methods,
         }
 
     return components
@@ -280,10 +311,22 @@ def format_prometheus(registry: MetricsStorage) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _escape_label_value(value: str) -> str:
+    """Escape a label value per the Prometheus exposition format."""
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+    )
+
+
 def _format_labels(labels: Dict[str, str]) -> str:
     """Format labels for Prometheus output."""
     if not labels:
         return ""
 
-    label_pairs = [f'{k}="{v}"' for k, v in sorted(labels.items())]
+    label_pairs = [
+        f'{k}="{_escape_label_value(v)}"' for k, v in sorted(labels.items())
+    ]
     return "{" + ",".join(label_pairs) + "}"

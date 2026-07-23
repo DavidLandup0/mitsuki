@@ -113,19 +113,22 @@ class RouteBuilder:
         Create an endpoint wrapper for a Mitsuki handler.
         Handles parameter extraction, validation, and response processing.
         """
-        has_params = bool(param_metadata)
         produces_type = route_meta.produces_type if route_meta else None
         exclude_fields = route_meta.exclude_fields if route_meta else []
         needs_processing = produces_type is not None or exclude_fields
 
+        # Resolve every signature-dependent decision once, at registration.
+        plan = (
+            self.parameter_binder.build_plan(param_metadata, route_meta)
+            if param_metadata
+            else None
+        )
+
         async def endpoint(request: Request):
             try:
                 # Build handler arguments and call handler
-                if has_params:
-                    handler_args = await self.parameter_binder.bind_parameters(
-                        request, param_metadata, route_meta
-                    )
-                    result = await handler(**handler_args)
+                if plan:
+                    result = await handler(**await plan.bind(request))
                 else:
                     result = await handler()
 

@@ -186,11 +186,15 @@ instrumentation:
 ### What Gets Tracked
 
 **HTTP Metrics** (automatic for all HTTP requests):
-- Request count by method, path, and status code
+- Request count by method, route and status code
 - Response time distribution (histograms for percentiles)
 
+The `path` label holds the matched route template (`/users/{user_id}`), not the
+requested URL, so metric cardinality stays bounded by the size of the route
+table. Requests that match no route are labelled `<unmatched>`.
+
 **Component Metrics** (for instrumented components):
-- Method call count (success vs failure)
+- Method call count (success vs failure), labelled by component and method
 - Execution time per method
 - Error rates
 
@@ -202,6 +206,7 @@ instrumentation:
 **System Metrics** (when `track_memory: true`):
 - CPU usage percentage
 - Memory usage (RSS, VMS)
+- Python traced memory (current and peak)
 
 **Note:** Private methods (starting with `_`) are never instrumented.
 
@@ -233,8 +238,14 @@ Example response:
       "latency": {"avg_ms": 8.5}
     },
     "components": {
-      "UserService": {"calls": 120, "avg_duration_ms": 5.2},
-      "OrderService": {"calls": 80, "avg_duration_ms": 12.1}
+      "UserService": {
+        "calls": 120,
+        "avg_duration_ms": 5.2,
+        "methods": {
+          "get_user": {"calls": 100, "avg_duration_ms": 4.1},
+          "create_user": {"calls": 20, "avg_duration_ms": 10.7}
+        }
+      }
     }
   }
 }
@@ -253,18 +264,18 @@ Example response:
 ```
 # HELP http_requests_total Total HTTP requests
 # TYPE http_requests_total counter
-http_requests_total{method="GET",path="/api/users",status="200"} 100.0
+http_requests_total{method="GET",path="/api/users/{user_id}",status="200"} 100.0
 
 # HELP http_request_duration_seconds HTTP request duration
 # TYPE http_request_duration_seconds histogram
-http_request_duration_seconds_bucket{method="GET",path="/api/users",le="0.005"} 50
-http_request_duration_seconds_bucket{method="GET",path="/api/users",le="0.01"} 80
-http_request_duration_seconds_sum{method="GET",path="/api/users"} 0.75
-http_request_duration_seconds_count{method="GET",path="/api/users"} 100
+http_request_duration_seconds_bucket{method="GET",path="/api/users/{user_id}",le="0.005"} 50
+http_request_duration_seconds_bucket{method="GET",path="/api/users/{user_id}",le="0.01"} 80
+http_request_duration_seconds_sum{method="GET",path="/api/users/{user_id}"} 0.75
+http_request_duration_seconds_count{method="GET",path="/api/users/{user_id}"} 100
 
 # HELP component_calls_total Component method calls
 # TYPE component_calls_total counter
-component_calls_total{component="UserService",status="success"} 120.0
+component_calls_total{component="UserService",method="get_user",status="success"} 100.0
 
 # HELP scheduler_task_executions_total Total number of scheduled task executions
 # TYPE scheduler_task_executions_total counter
@@ -279,7 +290,7 @@ scheduler_task_duration_seconds_count{task="BackgroundService.cleanup"} 42
 
 ## Scheduler Metrics
 
-When the scheduler and metrics are enabled, Mitsuki automatically records metrics for all `@Scheduled` tasks:
+When the scheduler and metrics are enabled, Mitsuki automatically records metrics for all `@Scheduled` tasks. Scheduler metrics need only `scheduler.enabled` and `metrics.enabled`; `instrumentation.enabled` governs HTTP and component instrumentation and is not required here.
 
 **Configuration:**
 ```yaml
@@ -290,10 +301,14 @@ metrics:
   enabled: true
 ```
 
+Scheduler metrics need only `scheduler.enabled` and `metrics.enabled`.
+`instrumentation.enabled` governs HTTP and component instrumentation and is not
+required here.
+
 **Metrics tracked:**
 - `scheduler_task_executions_total` - Counter with labels `{task, status}`
 - `scheduler_task_duration_seconds` - Histogram with label `{task}`
-- `scheduler_tasks_running` - Gauge with label `{task}`
+- `scheduler_tasks_running` - Gauge with label `{task}`, counting executions currently in flight
 
 **Example queries:**
 
@@ -532,9 +547,13 @@ export METRICS_PATH=/metrics
 
 ### Memory Tracking
 
-When `track_memory: true`:
-- Uses Python's `tracemalloc` module
-- Provides RSS, VMS, and traced memory metrics
+`track_memory` is a single switch for the whole system metrics block. When
+enabled, Mitsuki samples process CPU, resident and virtual memory, and Python's
+traced memory (via `tracemalloc`) every 5 seconds. When disabled, no system
+metrics are collected.
+
+`tracemalloc` adds significant allocation overhead, so `track_memory` defaults
+to `false` and should stay off unless you are actively investigating memory.
 
 ```yaml
 instrumentation:

@@ -7,7 +7,7 @@ import pytz
 from croniter import croniter
 
 from mitsuki.core.container import get_container
-from mitsuki.core.decorators import Infrastructure
+from mitsuki.core.decorators import Component
 from mitsuki.core.logging import get_logger
 from mitsuki.core.metrics_core import MetricsStorage
 
@@ -75,7 +75,7 @@ class TaskStatistics:
         }
 
 
-@Infrastructure()
+@Component()
 class TaskScheduler:
     """Manages scheduled tasks for the application."""
 
@@ -98,6 +98,19 @@ class TaskScheduler:
         self._metrics.gauge(
             "scheduler_tasks_running", "Number of currently running scheduled tasks"
         )
+
+    async def _execute_tracked(self, method, method_name: str):
+        """Run a scheduled method, counting it as running for its duration."""
+        running = self._metrics.gauge("scheduler_tasks_running")
+        running.inc({"task": method_name})
+        try:
+            if inspect.iscoroutinefunction(method):
+                await method()
+            else:
+                # Support sync methods by running in executor
+                await asyncio.get_event_loop().run_in_executor(None, method)
+        finally:
+            running.dec({"task": method_name})
 
     def register_scheduled_method(
         self, instance: Any, method: Callable, config: Dict
@@ -157,19 +170,13 @@ class TaskScheduler:
                 f"Starting scheduled task {method_name} (every {interval_ms}ms)"
             )
             stats.status = "running"
-            self._metrics.gauge("scheduler_tasks_running").inc({"task": method_name})
 
             while self.running:
                 iteration_start_time = asyncio.get_event_loop().time()
 
                 try:
-                    # Call the method (it's already bound to the instance)
                     execution_start_time = asyncio.get_event_loop().time()
-                    if inspect.iscoroutinefunction(method):
-                        await method()
-                    else:
-                        # Support sync methods by running in executor
-                        await asyncio.get_event_loop().run_in_executor(None, method)
+                    await self._execute_tracked(method, method_name)
 
                     # Track successful execution
                     duration_sec = (
@@ -237,15 +244,11 @@ class TaskScheduler:
                 f"Starting scheduled task {method_name} ({delay_ms}ms after completion)"
             )
             stats.status = "running"
-            self._metrics.gauge("scheduler_tasks_running").inc({"task": method_name})
 
             while self.running:
                 start_time = asyncio.get_event_loop().time()
                 try:
-                    if inspect.iscoroutinefunction(method):
-                        await method()
-                    else:
-                        await asyncio.get_event_loop().run_in_executor(None, method)
+                    await self._execute_tracked(method, method_name)
 
                     duration_sec = asyncio.get_event_loop().time() - start_time
                     duration_ms = duration_sec * 1000
@@ -310,7 +313,6 @@ class TaskScheduler:
                 f"Starting scheduled task {method_name} (cron: {cron_expr}{tz_info})"
             )
             stats.status = "running"
-            self._metrics.gauge("scheduler_tasks_running").inc({"task": method_name})
 
             while self.running:
                 try:
@@ -331,10 +333,7 @@ class TaskScheduler:
                             break
 
                         start_time = asyncio.get_event_loop().time()
-                        if inspect.iscoroutinefunction(method):
-                            await method()
-                        else:
-                            await asyncio.get_event_loop().run_in_executor(None, method)
+                        await self._execute_tracked(method, method_name)
 
                         duration_sec = asyncio.get_event_loop().time() - start_time
                         duration_ms = duration_sec * 1000
@@ -427,5 +426,18 @@ class TaskScheduler:
 
 
 def get_scheduler() -> TaskScheduler:
-    """Get the TaskScheduler instance from DI container."""
-    return get_container().get(TaskScheduler)
+    """
+    Get the TaskScheduler instance from the DI container.
+
+    The scheduler and its metrics storage are registered on demand, so a
+    scheduler is always available even when the container has been replaced
+    without a full component scan.
+    """
+    container = get_container()
+
+    if not container.has(MetricsStorage):
+        container.register(MetricsStorage, name="MetricsStorage")
+    if not container.has(TaskScheduler):
+        container.register(TaskScheduler, name="TaskScheduler")
+
+    return container.get(TaskScheduler)

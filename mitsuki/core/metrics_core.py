@@ -12,10 +12,10 @@ All metrics support labels for multi-dimensional data.
 import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from mitsuki.core.decorators import Infrastructure
+from mitsuki.core.decorators import Component
 
 
 @dataclass
@@ -24,7 +24,7 @@ class MetricSample:
 
     labels: Dict[str, str]
     value: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Counter:
@@ -208,7 +208,7 @@ class Histogram:
             return result
 
 
-@Infrastructure()
+@Component()
 class MetricsStorage:
     """
     Central registry for all application metrics.

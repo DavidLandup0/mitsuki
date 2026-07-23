@@ -202,7 +202,9 @@ def populate_container_from_decorators():
     """
     Populate the container from decorated classes.
     Scans sys.modules for classes with decorator metadata and registers them.
-    Infrastructure components are registered first.
+
+    Registration order is irrelevant: dependencies are resolved lazily on first
+    get(), by which point every component is registered.
     """
     container = get_container()
     logger = logging.getLogger(__name__)
@@ -222,7 +224,9 @@ def populate_container_from_decorators():
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 classes_found += 1
 
-                if not hasattr(obj, '_stereotype'):
+                # An undecorated class has no _stereotype. Checking the class
+                # dict keeps that from raising and aborting the whole module.
+                if "_stereotype" not in vars(obj):
                     continue
 
                 if obj._stereotype != StereotypeType.COMPONENT:
@@ -235,7 +239,6 @@ def populate_container_from_decorators():
                     'cls': obj,
                     'name': obj.__mitsuki_name__,
                     'scope': obj.__mitsuki_scope__,
-                    'subtype': obj._stereotype_subtype,
                     'module': module_name
                 })
 
@@ -245,12 +248,7 @@ def populate_container_from_decorators():
         except Exception as e:
             logger.debug(f"Couldn't inspect module {module_name}: {e}")
 
-    # Second pass: register infrastructure first, then others
-    infra_components = [c for c in components_to_register if c['subtype'] == StereotypeType.INFRASTRUCTURE]
-    regular_components = [c for c in components_to_register if c['subtype'] != StereotypeType.INFRASTRUCTURE]
-    all_comp = infra_components + regular_components
-
-    for component in all_comp:
+    for component in components_to_register:
         if container.has_by_name(component['name']):
             logger.debug(
                 f"Skipping {component['cls'].__name__} - already registered by name '{component['name']}'"

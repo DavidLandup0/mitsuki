@@ -5,9 +5,10 @@ from mitsuki.config.properties import get_config, log_config_sources
 from mitsuki.core.container import get_container
 from mitsuki.core.decorators import Configuration
 from mitsuki.core.enums import ServerType
-from mitsuki.core.instrumentation import InstrumentationRegistry
+from mitsuki.core.instrumentation import InstrumentationRegistry, apply_instrumentation
 from mitsuki.core.logging import configure_logging, get_logger
 from mitsuki.core.metrics import create_metrics_endpoint
+from mitsuki.core.metrics_core import MetricsStorage
 from mitsuki.core.providers import initialize_configuration_providers
 from mitsuki.core.scanner import scan_components
 from mitsuki.core.scheduler import get_scheduler
@@ -20,9 +21,6 @@ from mitsuki.core.server import (
 from mitsuki.data import initialize_database
 from mitsuki.openapi import register_openapi_endpoints
 from mitsuki.web.controllers import get_all_controllers
-
-# Global reference to application class for auto-instrumentation
-_application_class: Optional[Type] = None
 
 logger = get_logger()
 
@@ -74,7 +72,35 @@ class ApplicationContext:
         config = get_config()
         metrics_controller = create_metrics_endpoint(config)
         if metrics_controller:
-            logger.info(f"Registered metrics controller: {metrics_controller}")
+            metrics_path = config.get("metrics.path")
+            logger.info(
+                f"Metrics enabled at {metrics_path} and {metrics_path}/prometheus"
+            )
+
+    def initialize_metrics(self):
+        """
+        Enable metrics collection and register the metrics endpoints.
+
+        Must run before controllers are collected, since the metrics endpoints
+        are themselves registered by a @RestController.
+
+        metrics.enabled gates whether metrics are recorded and rendered at all.
+        instrumentation.enabled additionally instruments components and HTTP
+        requests.
+        """
+        config = get_config()
+
+        if config.get_bool("metrics.enabled"):
+            self.container.get(MetricsStorage).enable()
+
+        self._register_metrics_endpoint()
+
+        if config.get_bool("instrumentation.enabled"):
+            registry = self.container.get(InstrumentationRegistry)
+            registry.enable(
+                track_memory=config.get_bool("instrumentation.track_memory")
+            )
+            apply_instrumentation(self.application_class, registry)
 
     def _scan_scheduled_tasks(self):
         """Scan all registered components for @Scheduled methods."""
@@ -123,13 +149,10 @@ class ApplicationContext:
     def start(self, host: str = "127.0.0.1", port: int = 8000):
         asyncio.run(initialize_database())
 
-        # Initialize instrumentation if enabled
         config = get_config()
 
+        self.initialize_metrics()
         self.controllers = get_all_controllers()
-
-        # Register metrics endpoint if enabled
-        self._register_metrics_endpoint()
 
         # Register OpenAPI documentation endpoints if enabled
         register_openapi_endpoints(self, config)
@@ -159,11 +182,6 @@ class ApplicationContext:
             log_config_sources(config, logger, max_cols=3)
 
         logger.info(f"Mitsuki application starting on http://{host}:{port}")
-
-        if config.get_bool("instrumentation.enabled"):
-            registry = get_container().get(InstrumentationRegistry)
-            track_memory = config.get_bool("instrumentation.track_memory")
-            registry.enable(track_memory=track_memory)
 
         log_level_str = config.get("logging.level").lower()
         server_type = config.get("server.type").lower()
@@ -202,15 +220,9 @@ def Application(
     """
 
     def decorator(cls: Type) -> Type:
-        global _application_class
-
         cls.__mitsuki_application__ = True
         cls.__mitsuki_scan_packages__ = scan_packages
 
-        # Store for auto-instrumentation
-        _application_class = cls
-
-        # Apply @Configuration decorator
         cls = Configuration(cls)
 
         # Attach factory and ASGI wrapper for Granian workers
@@ -226,16 +238,9 @@ def Application(
                 initialize_configuration_providers()
                 await initialize_database()
 
-                # Initialize instrumentation if enabled
                 config = get_config()
-                if config.get_bool("instrumentation.enabled"):
-                    from mitsuki.core.instrumentation import InstrumentationRegistry
 
-                    registry = get_container().get(InstrumentationRegistry)
-                    track_memory = config.get_bool("instrumentation.track_memory")
-                    registry.enable(track_memory=track_memory)
-
-                context._register_metrics_endpoint()
+                context.initialize_metrics()
                 context.controllers = get_all_controllers()
 
                 # Register OpenAPI documentation endpoints if enabled

@@ -53,35 +53,6 @@ class ResponseProcessor:
             f"Response validation failed: expected {return_type.__name__}, got {type(data).__name__}"
         )
 
-    def validate_and_convert_input(self, data: Any, consumes_type: type) -> Any:
-        """Validate and convert input data to expected type (for input)."""
-
-        # Handle lists
-        if isinstance(data, list):
-            return [
-                self.validate_and_convert_input(item, consumes_type) for item in data
-            ]
-
-        # If already correct type, return as-is
-        if isinstance(data, consumes_type):
-            return data
-
-        # If data is dict and consumes_type is a dataclass, try to construct it
-        if isinstance(data, dict) and is_dataclass(consumes_type):
-            try:
-                # Create dataclass instance and return it (not asdict)
-                instance = consumes_type(**data)
-                return instance
-            except Exception as e:
-                raise RequestValidationException(
-                    f"Failed to validate input against {consumes_type.__name__}: {e}"
-                )
-
-        # Type mismatch - raise validation error
-        raise RequestValidationException(
-            f"Input validation failed: expected {consumes_type.__name__}, got {type(data).__name__}"
-        )
-
     def exclude_fields(self, data: Any, exclude_fields: list) -> Any:
         """Remove specified fields from response data, recursively processing nested structures."""
         if data is None:

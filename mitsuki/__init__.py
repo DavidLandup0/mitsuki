@@ -1,10 +1,4 @@
-"""
-Mitsuki - Spring-inspired Python web framework.
-Enterprise-grade annotation-driven development for Python.
-"""
-
-# Core
-# Config
+# Core and config
 from mitsuki.config import Profile, Value
 from mitsuki.core.application import Application, ApplicationContext
 from mitsuki.core.container import DIContainer, get_container
@@ -83,7 +77,7 @@ from mitsuki.web.serialization import (
 )
 from mitsuki.web.upload import UploadFile
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 __all__ = [
     # Core
     "Application",
