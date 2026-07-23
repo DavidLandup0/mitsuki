@@ -203,10 +203,10 @@ table. Requests that match no route are labelled `<unmatched>`.
 - Task execution duration
 - Number of running tasks
 
-**System Metrics** (when `track_memory: true`):
+**System Metrics** (automatic when instrumentation is enabled):
 - CPU usage percentage
 - Memory usage (RSS, VMS)
-- Python traced memory (current and peak)
+- Python traced memory, current and peak — only when `track_memory: true`
 
 **Note:** Private methods (starting with `_`) are never instrumented.
 
@@ -300,10 +300,6 @@ scheduler:
 metrics:
   enabled: true
 ```
-
-Scheduler metrics need only `scheduler.enabled` and `metrics.enabled`.
-`instrumentation.enabled` governs HTTP and component instrumentation and is not
-required here.
 
 **Metrics tracked:**
 - `scheduler_task_executions_total` - Counter with labels `{task, status}`
@@ -502,7 +498,7 @@ class SubscriptionService:
 ```yaml
 instrumentation:
   enabled: true          # Enable/disable instrumentation
-  track_memory: false    # Track memory with tracemalloc
+  track_memory: false    # Also collect Python traced memory (tracemalloc)
 
 metrics:
   enabled: true          # Enable metrics endpoints
@@ -547,13 +543,13 @@ export METRICS_PATH=/metrics
 
 ### Memory Tracking
 
-`track_memory` is a single switch for the whole system metrics block. When
-enabled, Mitsuki samples process CPU, resident and virtual memory, and Python's
-traced memory (via `tracemalloc`) every 5 seconds. When disabled, no system
-metrics are collected.
+Whenever instrumentation is enabled, Mitsuki samples process CPU and memory
+(RSS and VMS) via `psutil` every 5 seconds. These are cheap and always
+collected.
 
-`tracemalloc` adds significant allocation overhead, so `track_memory` defaults
-to `false` and should stay off unless you are actively investigating memory.
+`track_memory` additionally reports Python's traced memory (current and peak)
+via `tracemalloc`. This adds significant allocation overhead, so it defaults to
+`false` and should stay off unless you are actively investigating memory.
 
 ```yaml
 instrumentation:
@@ -575,6 +571,26 @@ scrape_configs:
       - targets: ['localhost:8000']
     metrics_path: '/metrics/prometheus'
 ```
+
+### Grafana Dashboard
+
+Mitsuki ships a ready-made Grafana dashboard covering HTTP, component (including
+per-method breakdowns), scheduler and system metrics. Write it out with the CLI:
+
+```bash
+# Write dashboard.json into the current directory
+mitsuki grafana-dashboard
+
+# Or into a specific directory (created if needed)
+mitsuki grafana-dashboard -o ./grafana/dashboards/
+```
+
+Point a Grafana [dashboard provider](https://grafana.com/docs/grafana/latest/administration/provisioning/#dashboards)
+at the output directory, or import the file through the Grafana UI. The
+dashboard queries a Prometheus datasource scraping `/metrics/prometheus`.
+
+For a fully wired setup that generates and provisions the dashboard
+automatically, see the [instrumentation demo](../examples/instrumentation_demo).
 
 ### Grafana Queries
 
@@ -654,7 +670,7 @@ For a full working example, check out the `examples/instrumentation_demo` app:
 
 ```bash
 cd examples/instrumentation_demo
-docker-compose up -d
+docker compose up -d --build
 ```
 
 Includes:
