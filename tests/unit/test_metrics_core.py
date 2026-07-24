@@ -58,6 +58,15 @@ class TestCounter:
 
         assert counter.get() == 10.0
 
+    def test_inc_key_matches_dict_labels(self):
+        """A pre-built key must read back through the dict-based get()."""
+        counter = Counter("requests_total")
+
+        counter.inc_key((("method", "GET"), ("path", "/u"), ("status", "200")))
+        counter.inc({"status": "200", "method": "GET", "path": "/u"})
+
+        assert counter.get({"method": "GET", "path": "/u", "status": "200"}) == 2.0
+
     def test_counter_samples(self):
         """Test getting all samples from counter."""
         counter = Counter("requests_total")
@@ -203,6 +212,20 @@ class TestHistogram:
         assert histogram.get_count({"method": "GET"}) == 2
         assert histogram.get_sum({"method": "GET"}) == pytest.approx(0.3)
         assert histogram.get_count({"method": "POST"}) == 1
+
+    def test_observe_key_matches_dict_labels(self):
+        """A pre-built key must read back through the dict-based getters."""
+        histogram = Histogram("request_duration")
+
+        histogram.observe_key(0.05, (("method", "GET"), ("path", "/u")))
+        histogram.observe(0.05, {"path": "/u", "method": "GET"})
+
+        labels = {"method": "GET", "path": "/u"}
+        assert histogram.get_count(labels) == 2
+        assert histogram.get_sum(labels) == pytest.approx(0.1)
+        assert histogram.get_buckets(labels) == histogram.get_buckets(
+            {"method": "GET", "path": "/u"}
+        )
 
     def test_histogram_buckets_distribution(self):
         """Test that observations are distributed into buckets correctly."""

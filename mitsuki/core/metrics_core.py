@@ -10,9 +10,11 @@ All metrics support labels for multi-dimensional data.
 """
 
 import threading
+from bisect import bisect_left
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from itertools import accumulate
 from typing import Any, Dict, List, Optional, Tuple
 
 from mitsuki.core.decorators import Component
@@ -42,7 +44,16 @@ class Counter:
 
     def inc(self, labels: Optional[Dict[str, str]] = None, amount: float = 1.0):
         """Increment counter by amount."""
-        label_key = self._labels_to_key(labels or {})
+        self.inc_key(self._labels_to_key(labels or {}), amount)
+
+    def inc_key(self, label_key: Tuple[Tuple[str, str], ...], amount: float = 1.0):
+        """
+        Increment by an already-canonical label key.
+
+        The key must equal ``_labels_to_key(labels)`` for the same labels, i.e.
+        a tuple of ``(name, value)`` pairs sorted by name. Lets hot-path callers
+        skip rebuilding and sorting a labels dict.
+        """
         with self._lock:
             self._values[label_key] += amount
 
@@ -152,18 +163,27 @@ class Histogram:
 
     def observe(self, value: float, labels: Optional[Dict[str, str]] = None):
         """Observe a value."""
-        label_key = Counter._labels_to_key(labels or {})
+        self.observe_key(value, Counter._labels_to_key(labels or {}))
+
+    def observe_key(self, value: float, label_key: Tuple[Tuple[str, str], ...]):
+        """
+        Observe a value under an already-canonical label key.
+
+        The key must equal ``_labels_to_key(labels)`` for the same labels (see
+        ``Counter.inc_key``).
+        """
+        # First bucket whose upper bound is >= value (i.e. value <= bucket).
+        # Values above the largest bound land in no bucket, only sum/count.
+        idx = bisect_left(self.buckets, value)
         with self._lock:
-            # Initialize buckets if needed
-            if label_key not in self._buckets_data:
-                self._buckets_data[label_key] = [0] * len(self.buckets)
+            counts = self._buckets_data.get(label_key)
+            if counts is None:
+                counts = [0] * len(self.buckets)
+                self._buckets_data[label_key] = counts
 
-            # Update buckets
-            for i, bucket in enumerate(self.buckets):
-                if value <= bucket:
-                    self._buckets_data[label_key][i] += 1
+            if idx < len(counts):
+                counts[idx] += 1
 
-            # Update sum and count
             self._sum[label_key] += value
             self._count[label_key] += 1
 
@@ -185,9 +205,10 @@ class Histogram:
         """Get bucket counts as list of (upper_bound, count) tuples."""
         label_key = Counter._labels_to_key(labels or {})
         with self._lock:
-            if label_key not in self._buckets_data:
+            counts = self._buckets_data.get(label_key)
+            if counts is None:
                 return [(bucket, 0) for bucket in self.buckets]
-            return list(zip(self.buckets, self._buckets_data[label_key]))
+            return list(zip(self.buckets, accumulate(counts)))
 
     def samples(
         self,
@@ -203,7 +224,10 @@ class Histogram:
                 labels = Counter._key_to_labels(label_key)
                 total_sum = self._sum[label_key]
                 total_count = self._count[label_key]
-                buckets = list(zip(self.buckets, self._buckets_data.get(label_key, [])))
+                counts = self._buckets_data.get(label_key)
+                buckets = (
+                    list(zip(self.buckets, accumulate(counts))) if counts else []
+                )
                 result.append((labels, total_sum, total_count, buckets))
             return result
 

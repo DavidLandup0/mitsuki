@@ -112,6 +112,36 @@ class TaskScheduler:
         finally:
             running.dec({"task": method_name})
 
+    def _record_success(
+        self, stats: "TaskStatistics", method_name: str, duration_sec: float
+    ):
+        """Record a successful execution in statistics and metrics."""
+        duration_ms = duration_sec * 1000
+        stats.executions += 1
+        stats.last_execution = datetime.now()
+        stats.last_duration_ms = duration_ms
+        stats.total_duration_ms += duration_ms
+
+        self._metrics.counter("scheduler_task_executions_total").inc(
+            {"task": method_name, "status": "success"}
+        )
+        self._metrics.histogram("scheduler_task_duration_seconds").observe(
+            duration_sec, {"task": method_name}
+        )
+
+    def _record_failure(
+        self, stats: "TaskStatistics", method_name: str, error: Exception
+    ):
+        """Record a failed execution in statistics and metrics."""
+        stats.failures += 1
+        self._metrics.counter("scheduler_task_executions_total").inc(
+            {"task": method_name, "status": "failure"}
+        )
+        logger.error(
+            f"Scheduled task {method_name} failed with error: {error}",
+            exc_info=True,
+        )
+
     def register_scheduled_method(
         self, instance: Any, method: Callable, config: Dict
     ) -> None:
@@ -175,35 +205,14 @@ class TaskScheduler:
                 iteration_start_time = asyncio.get_event_loop().time()
 
                 try:
-                    execution_start_time = asyncio.get_event_loop().time()
                     await self._execute_tracked(method, method_name)
-
-                    # Track successful execution
-                    duration_sec = (
-                        asyncio.get_event_loop().time() - execution_start_time
-                    )
-                    duration_ms = duration_sec * 1000
-
-                    stats.executions += 1
-                    stats.last_execution = datetime.now()
-                    stats.last_duration_ms = duration_ms
-                    stats.total_duration_ms += duration_ms
-
-                    self._metrics.counter("scheduler_task_executions_total").inc(
-                        {"task": method_name, "status": "success"}
-                    )
-                    self._metrics.histogram("scheduler_task_duration_seconds").observe(
-                        duration_sec, {"task": method_name}
+                    self._record_success(
+                        stats,
+                        method_name,
+                        asyncio.get_event_loop().time() - iteration_start_time,
                     )
                 except Exception as e:
-                    stats.failures += 1
-                    self._metrics.counter("scheduler_task_executions_total").inc(
-                        {"task": method_name, "status": "failure"}
-                    )
-                    logger.error(
-                        f"Scheduled task {method_name} failed with error: {e}",
-                        exc_info=True,
-                    )
+                    self._record_failure(stats, method_name, e)
 
                 # Calculate remaining time to maintain fixed rate
                 elapsed_time = asyncio.get_event_loop().time() - iteration_start_time
@@ -249,30 +258,11 @@ class TaskScheduler:
                 start_time = asyncio.get_event_loop().time()
                 try:
                     await self._execute_tracked(method, method_name)
-
-                    duration_sec = asyncio.get_event_loop().time() - start_time
-                    duration_ms = duration_sec * 1000
-
-                    stats.executions += 1
-                    stats.last_execution = datetime.now()
-                    stats.last_duration_ms = duration_ms
-                    stats.total_duration_ms += duration_ms
-
-                    self._metrics.counter("scheduler_task_executions_total").inc(
-                        {"task": method_name, "status": "success"}
-                    )
-                    self._metrics.histogram("scheduler_task_duration_seconds").observe(
-                        duration_sec, {"task": method_name}
+                    self._record_success(
+                        stats, method_name, asyncio.get_event_loop().time() - start_time
                     )
                 except Exception as e:
-                    stats.failures += 1
-                    self._metrics.counter("scheduler_task_executions_total").inc(
-                        {"task": method_name, "status": "failure"}
-                    )
-                    logger.error(
-                        f"Scheduled task {method_name} failed with error: {e}",
-                        exc_info=True,
-                    )
+                    self._record_failure(stats, method_name, e)
 
                 # Wait after execution completes (fixed delay)
                 await asyncio.sleep(delay_sec)
@@ -334,31 +324,14 @@ class TaskScheduler:
 
                         start_time = asyncio.get_event_loop().time()
                         await self._execute_tracked(method, method_name)
-
-                        duration_sec = asyncio.get_event_loop().time() - start_time
-                        duration_ms = duration_sec * 1000
-
-                        stats.executions += 1
-                        stats.last_execution = datetime.now()
-                        stats.last_duration_ms = duration_ms
-                        stats.total_duration_ms += duration_ms
-
-                        self._metrics.counter("scheduler_task_executions_total").inc(
-                            {"task": method_name, "status": "success"}
+                        self._record_success(
+                            stats,
+                            method_name,
+                            asyncio.get_event_loop().time() - start_time,
                         )
-                        self._metrics.histogram(
-                            "scheduler_task_duration_seconds"
-                        ).observe(duration_sec, {"task": method_name})
 
                 except Exception as e:
-                    stats.failures += 1
-                    self._metrics.counter("scheduler_task_executions_total").inc(
-                        {"task": method_name, "status": "failure"}
-                    )
-                    logger.error(
-                        f"Scheduled task {method_name} failed with error: {e}",
-                        exc_info=True,
-                    )
+                    self._record_failure(stats, method_name, e)
 
                     # On error, wait a bit before next iteration
                     await asyncio.sleep(1)

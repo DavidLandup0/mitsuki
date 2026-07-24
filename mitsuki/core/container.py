@@ -212,16 +212,14 @@ def populate_container_from_decorators():
     registered_count = 0
     modules_scanned = 0
     classes_with_metadata = []
-    components_to_register = []
 
-    # First pass: collect all components
     for module_name, module in list(sys.modules.items()):
         if not module or module_name.startswith("_"):
             continue
 
         try:
             classes_found = 0
-            for name, obj in inspect.getmembers(module, inspect.isclass):
+            for _, obj in inspect.getmembers(module, inspect.isclass):
                 classes_found += 1
 
                 # An undecorated class has no _stereotype. Checking the class
@@ -232,34 +230,26 @@ def populate_container_from_decorators():
                 if obj._stereotype != StereotypeType.COMPONENT:
                     continue
 
+                name = obj.__mitsuki_name__
                 classes_with_metadata.append(f"{module_name}.{obj.__name__}")
-                logger.debug(f"Found decorated class: {module_name}.{obj.__name__}")
 
-                components_to_register.append({
-                    'cls': obj,
-                    'name': obj.__mitsuki_name__,
-                    'scope': obj.__mitsuki_scope__,
-                    'module': module_name
-                })
+                if container.has_by_name(name):
+                    logger.debug(
+                        f"Skipping {obj.__name__} - already registered by name '{name}'"
+                    )
+                    continue
+
+                container.register(obj, name=name, scope=obj.__mitsuki_scope__)
+                registered_count += 1
+                logger.debug(
+                    f"Registered {obj.__name__} from {module_name} in worker container"
+                )
 
             if classes_found > 0:
                 modules_scanned += 1
 
         except Exception as e:
             logger.debug(f"Couldn't inspect module {module_name}: {e}")
-
-    for component in components_to_register:
-        if container.has_by_name(component['name']):
-            logger.debug(
-                f"Skipping {component['cls'].__name__} - already registered by name '{component['name']}'"
-            )
-            continue
-
-        container.register(component['cls'], name=component['name'], scope=component['scope'])
-        registered_count += 1
-        logger.debug(
-            f"Re-registered {component['cls'].__name__} from {component['module']} in worker container"
-        )
 
     logger.info(
         f"Scanned {modules_scanned} modules, found {len(classes_with_metadata)} classes with metadata, populated container with {registered_count} components"

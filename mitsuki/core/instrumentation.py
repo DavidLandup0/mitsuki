@@ -127,10 +127,14 @@ class InstrumentationRegistry:
         if not self.enabled:
             return
 
-        self._requests.inc(
-            {"method": method, "path": route, "status": str(status_code)}
+        # Keys built pre-sorted by label name (method < path < status) to match
+        # _labels_to_key without allocating and sorting a dict per request.
+        self._requests.inc_key(
+            (("method", method), ("path", route), ("status", str(status_code)))
         )
-        self._request_duration.observe(duration_sec, {"method": method, "path": route})
+        self._request_duration.observe_key(
+            duration_sec, (("method", method), ("path", route))
+        )
 
     def record_component_call(
         self,
@@ -143,15 +147,13 @@ class InstrumentationRegistry:
         if not self.enabled:
             return
 
-        self._component_calls.inc(
-            {
-                "component": component_name,
-                "method": method_name,
-                "status": "failure" if error else "success",
-            }
+        # Keys built pre-sorted by label name (component < method < status).
+        status = "failure" if error else "success"
+        self._component_calls.inc_key(
+            (("component", component_name), ("method", method_name), ("status", status))
         )
-        self._component_duration.observe(
-            duration_sec, {"component": component_name, "method": method_name}
+        self._component_duration.observe_key(
+            duration_sec, (("component", component_name), ("method", method_name))
         )
 
 
