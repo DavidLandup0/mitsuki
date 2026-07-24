@@ -3,7 +3,7 @@
 This example demonstrates Mitsuki's instrumentation and metrics capabilities with Grafana visualization:
 
 - **Auto-instrumentation**: Single `@Instrumented` decorator on `@Application` instruments all components
-- **System metrics**: CPU, memory, uptime tracking
+- **System metrics**: CPU and memory (RSS, VMS) tracking
 - **HTTP metrics**: Request counts, latency percentiles, per-endpoint statistics
 - **Component metrics**: Service/repository method timing, error rates
 - **Custom operational metrics**: Database operations, query performance, resource usage
@@ -82,8 +82,8 @@ curl http://localhost:8000/metrics/prometheus
 
 All services, repositories, and controllers are automatically instrumented:
 
-- **HTTP requests**: Status codes, latency percentiles (p50, p95, p99), per-endpoint stats
-- **Component calls**: Count, error rate, execution time (min/max/avg)
+- **HTTP requests**: Status codes, request/duration histograms (percentiles via Prometheus), per-endpoint stats
+- **Component calls**: Count, error rate, average execution time (per component and method)
 - **System resources**: CPU usage, memory (RSS, VMS)
 
 ### Custom Operational Metrics

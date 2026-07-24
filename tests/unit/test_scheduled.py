@@ -124,6 +124,72 @@ class TestTaskScheduler:
         assert service.counter <= 4  # Allow timing variance
 
     @pytest.mark.asyncio
+    async def test_scheduler_emits_success_metrics(self):
+        """Successful executions increment the counter and duration histogram."""
+
+        @Service()
+        class MetricService:
+            @Scheduled(fixed_rate=100)
+            async def work(self):
+                pass
+
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
+        service = MetricService()
+        task = "MetricService.work"
+
+        scheduler.register_scheduled_method(
+            service, service.work, {"fixed_rate": 100, "initial_delay": 0}
+        )
+        await scheduler.start()
+        await asyncio.sleep(0.35)
+        await scheduler.stop()
+
+        executions = metrics_storage.counter("scheduler_task_executions_total").get(
+            {"task": task, "status": "success"}
+        )
+        assert executions >= 2
+        assert (
+            metrics_storage.histogram("scheduler_task_duration_seconds").get_count(
+                {"task": task}
+            )
+            == executions
+        )
+        # The running gauge must return to zero once execution finishes.
+        assert (
+            metrics_storage.gauge("scheduler_tasks_running").get({"task": task}) == 0
+        )
+
+    @pytest.mark.asyncio
+    async def test_scheduler_emits_failure_metrics(self):
+        """Failing executions increment the failure counter, not success."""
+
+        @Service()
+        class FailingMetricService:
+            @Scheduled(fixed_rate=100)
+            async def work(self):
+                raise ValueError("boom")
+
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
+        service = FailingMetricService()
+        task = "FailingMetricService.work"
+
+        scheduler.register_scheduled_method(
+            service, service.work, {"fixed_rate": 100, "initial_delay": 0}
+        )
+        await scheduler.start()
+        await asyncio.sleep(0.35)
+        await scheduler.stop()
+
+        counter = metrics_storage.counter("scheduler_task_executions_total")
+        assert counter.get({"task": task, "status": "failure"}) >= 2
+        assert counter.get({"task": task, "status": "success"}) == 0
+        assert (
+            metrics_storage.gauge("scheduler_tasks_running").get({"task": task}) == 0
+        )
+
+    @pytest.mark.asyncio
     async def test_scheduler_initial_delay(self):
         """Test that initial_delay works correctly."""
 

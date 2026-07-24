@@ -98,27 +98,26 @@ class InstrumentationRegistry:
             self._background_task.cancel()
             self._background_task = None
 
-    async def _collect_system_metrics(self):
-        """Sample process CPU, memory and traced memory every 5 seconds."""
+    def _sample_once(self):
+        """Sample process CPU and memory, plus traced memory when enabled."""
+        mem_info = self.process.memory_info()
         memory = self._core.gauge("system_memory_bytes")
-        cpu = self._core.gauge("system_cpu_percent")
-        traced = (
-            self._core.gauge("system_traced_memory_bytes")
-            if self._track_memory
-            else None
+        memory.set(mem_info.rss, {"type": "rss"})
+        memory.set(mem_info.vms, {"type": "vms"})
+        self._core.gauge("system_cpu_percent").set(
+            self.process.cpu_percent(interval=None)
         )
 
+        if self._track_memory:
+            current, peak = tracemalloc.get_traced_memory()
+            traced = self._core.gauge("system_traced_memory_bytes")
+            traced.set(current, {"type": "current"})
+            traced.set(peak, {"type": "peak"})
+
+    async def _collect_system_metrics(self):
+        """Sample system metrics every 5 seconds while enabled."""
         while self.enabled:
-            mem_info = self.process.memory_info()
-            memory.set(mem_info.rss, {"type": "rss"})
-            memory.set(mem_info.vms, {"type": "vms"})
-            cpu.set(self.process.cpu_percent(interval=None))
-
-            if traced is not None:
-                current, peak = tracemalloc.get_traced_memory()
-                traced.set(current, {"type": "current"})
-                traced.set(peak, {"type": "peak"})
-
+            self._sample_once()
             await asyncio.sleep(5)
 
     def record_http_request(
