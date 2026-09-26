@@ -35,6 +35,18 @@ With the completion of the features below - we go into 0.3.x versions:
 ### Maintenance
 - Production-hardening on the core internals
 
+## Before 0.4.0
+
+With the completion of the features below - we go into 0.4.x versions:
+
+### Major Features
+- Middleware API
+
+## Before 1.0.0
+
+### Major Features
+- Auth/JWT support
+
 
 ## Overarching
 
