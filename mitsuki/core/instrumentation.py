@@ -1,26 +1,31 @@
 import asyncio
 import functools
+import importlib.util
 import inspect
 import time
 import tracemalloc
-from datetime import datetime, timezone
 from types import FunctionType
-from typing import Callable, Dict, Optional, Type
+from typing import Callable, Dict, Optional, Set, Type
 
-import psutil
 from starlette.routing import Route
 
 from mitsuki.core.decorators import Component, _instrumentable_components
-from mitsuki.core.metrics_core import MetricsStorage
+from mitsuki.core.metrics_core import (
+    MetricsStorage,
+    validate_label_names,
+    validate_metric_name,
+)
 
-# Set by @Instrumented on a component: True opts in, False opts out.
+# Set by @Instrumented: True opts in, False opts out. On the @Application
+# class it opts in every component.
 _MARKER = "_instrumented_decorator_applied"
-
-# Set by @Instrumented on the @Application class.
-_INSTRUMENT_ALL = "_instrument_all_components"
 
 # Guards against wrapping a class more than once.
 _APPLIED = "_instrumentation_applied"
+
+# Set on every instrumentation wrapper, so a subclass inheriting one from an
+# instrumented parent does not wrap it again and record each call twice.
+_WRAPPER = "__mitsuki_instrumented__"
 
 
 @Component()
@@ -35,10 +40,9 @@ class InstrumentationRegistry:
 
     def __init__(self, metrics_storage: MetricsStorage):
         self.enabled: bool = False
-        self.start_time: datetime = datetime.now(timezone.utc)
         self._track_memory = False
         self._core = metrics_storage
-        self.process = psutil.Process()
+        self.process = None
         self._background_task: Optional[asyncio.Task] = None
 
         self._requests = None
@@ -47,7 +51,23 @@ class InstrumentationRegistry:
         self._component_duration = None
 
     def enable(self, track_memory: bool = False):
-        """Begin recording metrics."""
+        """
+        Begin recording metrics.
+
+        Raises RuntimeError when psutil, provided by the mitsuki[metrics] extra,
+        is not installed.
+        """
+        if importlib.util.find_spec("psutil") is None:
+            raise RuntimeError(
+                "instrumentation.enabled requires psutil: "
+                "pip install 'mitsuki[metrics]'"
+            )
+
+        # psutil is an optional dependency, needed only once instrumentation
+        # is enabled, so it is imported here rather than at module level.
+        import psutil
+
+        self.process = psutil.Process()
         self.enabled = True
         self._track_memory = track_memory
 
@@ -166,7 +186,8 @@ def Instrumented(enabled: bool = True):
     enabled=False opts a component out of application-wide instrumentation.
 
     Instrumentation is applied at startup and only when
-    instrumentation.enabled is set in configuration.
+    instrumentation.enabled is set in configuration. Order relative to
+    @Application and the stereotype decorators does not matter.
 
         @Instrumented()
         @Application
@@ -182,10 +203,6 @@ def Instrumented(enabled: bool = True):
 
     def decorator(cls):
         setattr(cls, _MARKER, enabled)
-
-        if cls.__dict__.get("__mitsuki_application__"):
-            setattr(cls, _INSTRUMENT_ALL, enabled)
-
         return cls
 
     return decorator
@@ -199,7 +216,7 @@ def apply_instrumentation(app_cls: Type, registry: InstrumentationRegistry):
     @Instrumented on the application class. @Instrumented(enabled=False) on a
     component always wins.
     """
-    instrument_all = bool(app_cls.__dict__.get(_INSTRUMENT_ALL, False))
+    instrument_all = app_cls.__dict__.get(_MARKER) is True
 
     for cls in _instrumentable_components:
         if cls.__dict__.get(_APPLIED):
@@ -213,7 +230,13 @@ def apply_instrumentation(app_cls: Type, registry: InstrumentationRegistry):
 
 
 def _instrument_class(cls: Type, registry: InstrumentationRegistry):
-    """Wrap the public methods a component defines or inherits."""
+    """
+    Wrap the public methods a component defines or inherits.
+
+    Methods inherited already wrapped, from an instrumented parent, are left
+    as they are: wrappers attribute each call to the class of the instance
+    called, so the parent's wrapper already records calls on this class.
+    """
     setattr(cls, _APPLIED, True)
     seen = set()
 
@@ -229,62 +252,82 @@ def _instrument_class(cls: Type, registry: InstrumentationRegistry):
 
             # staticmethod, classmethod and property are descriptors; rebinding
             # them as plain functions changes how they resolve on instances.
-            if not isinstance(attr, FunctionType):
+            if not isinstance(attr, FunctionType) or attr.__dict__.get(_WRAPPER):
                 continue
 
-            setattr(cls, name, _instrument_function(cls.__name__, attr, registry))
+            setattr(cls, name, _instrument_function(attr, registry))
 
 
-def _instrument_function(
-    component_name: str, method: Callable, registry: InstrumentationRegistry
-):
-    """Wrap a method to record its call count and duration."""
+def _instrument_function(method: Callable, registry: InstrumentationRegistry):
+    """
+    Wrap a method to record its call count and duration.
+
+    The component label is the class of the instance called, so a method
+    shared through inheritance is attributed to the concrete component.
+    """
     record = registry.record_component_call
     method_name = method.__name__
 
     if inspect.iscoroutinefunction(method):
 
         @functools.wraps(method)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(self, *args, **kwargs):
             start_time = time.perf_counter()
             failed = False
             try:
-                return await method(*args, **kwargs)
+                return await method(self, *args, **kwargs)
             except Exception:
                 failed = True
                 raise
             finally:
                 record(
-                    component_name,
+                    type(self).__name__,
                     method_name,
                     time.perf_counter() - start_time,
                     failed,
                 )
 
+        setattr(async_wrapper, _WRAPPER, True)
         return async_wrapper
 
     @functools.wraps(method)
-    def sync_wrapper(*args, **kwargs):
+    def sync_wrapper(self, *args, **kwargs):
         start_time = time.perf_counter()
         failed = False
         try:
-            return method(*args, **kwargs)
+            return method(self, *args, **kwargs)
         except Exception:
             failed = True
             raise
         finally:
-            record(component_name, method_name, time.perf_counter() - start_time, failed)
+            record(
+                type(self).__name__,
+                method_name,
+                time.perf_counter() - start_time,
+                failed,
+            )
 
+    setattr(sync_wrapper, _WRAPPER, True)
     return sync_wrapper
 
 
 def build_route_map(routes) -> Dict:
-    """Map route endpoints to their path templates."""
-    return {
-        route.endpoint: route.path_format
-        for route in routes
-        if isinstance(route, Route)
-    }
+    """
+    Map route endpoints to their path templates.
+
+    A trailing-slash alias shares its canonical route's endpoint, so when an
+    endpoint serves several templates the shortest, canonical one is kept.
+    """
+    mapping = {}
+    for route in routes:
+        if not isinstance(route, Route):
+            continue
+
+        existing = mapping.get(route.endpoint)
+        if existing is None or len(route.path_format) < len(existing):
+            mapping[route.endpoint] = route.path_format
+
+    return mapping
 
 
 class InstrumentationMiddleware:
@@ -292,15 +335,23 @@ class InstrumentationMiddleware:
     ASGI middleware recording request counts and latency.
 
     Requests are labelled by matched route template rather than raw path, so
-    metric cardinality stays bounded by the size of the route table.
+    metric cardinality stays bounded by the size of the route table. Requests
+    matching a template in excluded are not recorded.
     """
 
     UNMATCHED = "<unmatched>"
 
-    def __init__(self, app, registry: InstrumentationRegistry, routes: Dict):
+    def __init__(
+        self,
+        app,
+        registry: InstrumentationRegistry,
+        routes: Dict,
+        excluded: Set[str] = frozenset(),
+    ):
         self.app = app
         self.registry = registry
         self.routes = routes
+        self.excluded = excluded
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or not self.registry.enabled:
@@ -322,9 +373,10 @@ class InstrumentationMiddleware:
         finally:
             # Starlette's router writes the matched endpoint into the scope.
             route = self.routes.get(scope.get("endpoint"), self.UNMATCHED)
-            self.registry.record_http_request(
-                method, route, status_code, time.perf_counter() - start_time
-            )
+            if route not in self.excluded:
+                self.registry.record_http_request(
+                    method, route, status_code, time.perf_counter() - start_time
+                )
 
 
 @Component()
@@ -345,7 +397,16 @@ class InstrumentationProvider:
                 value=1,
                 labels={"source": "web"},
             )
+
+        Raises ValueError for a metric or label name Prometheus cannot accept,
+        or a metric name already registered as a gauge or histogram. Names are
+        validated even while metrics are disabled, so a bad name surfaces before
+        metrics are switched on.
         """
+        validate_metric_name(metric_name)
+        if labels:
+            validate_label_names(labels)
+
         if not self._core.enabled:
             return
 

@@ -134,6 +134,7 @@ class TestTaskScheduler:
                 pass
 
         metrics_storage = MetricsStorage()
+        metrics_storage.enable()
         scheduler = TaskScheduler(metrics_storage)
         service = MetricService()
         task = "MetricService.work"
@@ -156,9 +157,7 @@ class TestTaskScheduler:
             == executions
         )
         # The running gauge must return to zero once execution finishes.
-        assert (
-            metrics_storage.gauge("scheduler_tasks_running").get({"task": task}) == 0
-        )
+        assert metrics_storage.gauge("scheduler_tasks_running").get({"task": task}) == 0
 
     @pytest.mark.asyncio
     async def test_scheduler_emits_failure_metrics(self):
@@ -171,6 +170,7 @@ class TestTaskScheduler:
                 raise ValueError("boom")
 
         metrics_storage = MetricsStorage()
+        metrics_storage.enable()
         scheduler = TaskScheduler(metrics_storage)
         service = FailingMetricService()
         task = "FailingMetricService.work"
@@ -185,9 +185,42 @@ class TestTaskScheduler:
         counter = metrics_storage.counter("scheduler_task_executions_total")
         assert counter.get({"task": task, "status": "failure"}) >= 2
         assert counter.get({"task": task, "status": "success"}) == 0
-        assert (
-            metrics_storage.gauge("scheduler_tasks_running").get({"task": task}) == 0
+        assert metrics_storage.gauge("scheduler_tasks_running").get({"task": task}) == 0
+
+    @pytest.mark.asyncio
+    async def test_scheduler_skips_metrics_while_storage_disabled(self):
+        """
+        With metrics disabled nothing is recorded to storage, but the
+        in-process task statistics still update.
+        """
+
+        @Service()
+        class UnmeteredService:
+            @Scheduled(fixed_rate=100)
+            async def work(self):
+                pass
+
+        metrics_storage = MetricsStorage()
+        scheduler = TaskScheduler(metrics_storage)
+        service = UnmeteredService()
+
+        scheduler.register_scheduled_method(
+            service, service.work, {"fixed_rate": 100, "initial_delay": 0}
         )
+        await scheduler.start()
+        await asyncio.sleep(0.25)
+        await scheduler.stop()
+
+        assert (
+            metrics_storage.counter("scheduler_task_executions_total").samples() == []
+        )
+        assert (
+            metrics_storage.histogram("scheduler_task_duration_seconds").samples() == []
+        )
+        assert metrics_storage.gauge("scheduler_tasks_running").samples() == []
+
+        stats = scheduler.get_task_statistics()["tasks"][0]
+        assert stats["executions"] >= 2
 
     @pytest.mark.asyncio
     async def test_scheduler_initial_delay(self):

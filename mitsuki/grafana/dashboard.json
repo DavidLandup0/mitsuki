@@ -1905,9 +1905,9 @@
         "x": 0,
         "y": 76
       },
-      "id": 21,
+      "id": 32,
       "panels": [],
-      "title": "Database & Operations",
+      "title": "Scheduler",
       "type": "row"
     },
     {
@@ -1969,12 +1969,12 @@
         "x": 0,
         "y": 77
       },
-      "id": 22,
+      "id": 33,
       "options": {
         "legend": {
           "calcs": [
-            "last",
-            "mean"
+            "mean",
+            "max"
           ],
           "displayMode": "table",
           "placement": "bottom",
@@ -1982,17 +1982,21 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "rate(database_writes_total[5m])",
-          "legendFormat": "{{table}} - {{operation}}",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus"
+          },
+          "expr": "sum(rate(scheduler_task_executions_total[5m])) by (task)",
+          "refId": "A",
+          "legendFormat": "{{task}}"
         }
       ],
-      "title": "Database Write Operations",
+      "title": "Task Execution Rate",
       "type": "timeseries"
     },
     {
@@ -2041,18 +2045,10 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 100
-              },
-              {
-                "color": "red",
-                "value": 1000
               }
             ]
           },
-          "unit": "short"
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -2062,11 +2058,10 @@
         "x": 12,
         "y": 77
       },
-      "id": 23,
+      "id": 34,
       "options": {
         "legend": {
           "calcs": [
-            "last",
             "mean",
             "max"
           ],
@@ -2076,17 +2071,21 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "database_query_rows_returned",
-          "legendFormat": "{{table}} - {{query_type}}",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(scheduler_task_duration_seconds_bucket[5m])) by (le, task)) * 1000",
+          "refId": "A",
+          "legendFormat": "{{task}}"
         }
       ],
-      "title": "Query Result Sizes (Rows Returned)",
+      "title": "Task Duration (P95)",
       "type": "timeseries"
     },
     {
@@ -2096,7 +2095,37 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -2105,14 +2134,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 5
-              },
-              {
-                "color": "red",
-                "value": 20
               }
             ]
           },
@@ -2126,28 +2147,35 @@
         "x": 0,
         "y": 85
       },
-      "id": 24,
+      "id": 35,
       "options": {
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
+        "legend": {
           "calcs": [
-            "lastNotNull"
+            "mean",
+            "max"
           ],
-          "fields": ""
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "rate(database_full_scan_total[5m])",
-          "legendFormat": "{{table}}",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus"
+          },
+          "expr": "sum(rate(scheduler_task_executions_total{status=\"failure\"}[5m])) by (task)",
+          "refId": "A",
+          "legendFormat": "{{task}}"
         }
       ],
-      "title": "Full Table Scans",
-      "type": "gauge"
+      "title": "Task Failure Rate",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -2198,7 +2226,7 @@
               }
             ]
           },
-          "unit": "ops"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -2208,12 +2236,12 @@
         "x": 12,
         "y": 85
       },
-      "id": 25,
+      "id": 36,
       "options": {
         "legend": {
           "calcs": [
-            "last",
-            "mean"
+            "mean",
+            "max"
           ],
           "displayMode": "table",
           "placement": "bottom",
@@ -2221,17 +2249,21 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "rate(expensive_aggregation_total[5m])",
-          "legendFormat": "{{operation}} ({{records_processed}} records)",
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus"
+          },
+          "expr": "scheduler_tasks_running",
+          "refId": "A",
+          "legendFormat": "{{task}}"
         }
       ],
-      "title": "Expensive Aggregations",
+      "title": "Running Tasks",
       "type": "timeseries"
     },
     {

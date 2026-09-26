@@ -294,3 +294,94 @@ class TestMetricsEndpoint:
 
         assert isinstance(result, PlainTextResponse)
         assert result.media_type == "text/plain; version=0.0.4"
+
+
+def _controller(allowed_ips):
+    config = Mock()
+    config.get_bool.return_value = True
+    config.get.side_effect = lambda key, default=None: {
+        "metrics.path": "/metrics",
+        "metrics.allowed_ips": allowed_ips,
+    }.get(key, default)
+
+    storage = MetricsStorage()
+    storage.enable()
+    return create_metrics_endpoint(config)(storage)
+
+
+def _request(host):
+    request = Mock(spec=Request)
+    if host is None:
+        request.client = None
+    else:
+        request.client.host = host
+    return request
+
+
+class TestAllowlistParsing:
+    """Allowlist entries are validated once, when the endpoint is created."""
+
+    @pytest.mark.parametrize(
+        "entry", ["not-an-ip", "10.0.0.0/33", "256.1.1.1", "localhost"]
+    )
+    def test_invalid_entry_fails_at_creation(self, entry):
+        with pytest.raises(ValueError, match="metrics.allowed_ips"):
+            _controller(["127.0.0.1", entry])
+
+
+class TestAllowlistMatching:
+    """Client addresses are compared as addresses, not strings."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("handler", ["get_metrics", "get_prometheus_metrics"])
+    async def test_missing_client_is_denied(self, handler):
+        controller = _controller(["127.0.0.1"])
+
+        result = await getattr(controller, handler)(_request(None))
+
+        assert isinstance(result, ResponseEntity)
+        assert result.status == 404
+
+    @pytest.mark.asyncio
+    async def test_missing_client_allowed_without_allowlist(self):
+        controller = _controller([])
+
+        result = await controller.get_metrics(_request(None))
+
+        assert isinstance(result, dict)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("host", ["testclient", "", "unix:/tmp/app.sock"])
+    async def test_non_ip_client_is_denied(self, host):
+        controller = _controller(["127.0.0.1"])
+
+        result = await controller.get_metrics(_request(host))
+
+        assert isinstance(result, ResponseEntity)
+        assert result.status == 404
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "allowed, host",
+        [
+            ("127.0.0.1", "::ffff:127.0.0.1"),
+            ("10.0.0.0/8", "::ffff:10.1.2.3"),
+            ("::1", "0:0:0:0:0:0:0:1"),
+            ("0:0:0:0:0:0:0:1", "::1"),
+        ],
+    )
+    async def test_equivalent_address_forms_match(self, allowed, host):
+        controller = _controller([allowed])
+
+        result = await controller.get_metrics(_request(host))
+
+        assert isinstance(result, dict)
+
+    @pytest.mark.asyncio
+    async def test_mapped_address_outside_allowlist_is_denied(self):
+        controller = _controller(["127.0.0.1"])
+
+        result = await controller.get_metrics(_request("::ffff:192.168.1.1"))
+
+        assert isinstance(result, ResponseEntity)
+        assert result.status == 404

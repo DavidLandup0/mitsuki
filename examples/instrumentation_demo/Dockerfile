@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 
 COPY . .
 # Install mitsuki in editable mode (until a release is made)
-RUN pip install -e .
+RUN pip install -e ".[metrics]"
 WORKDIR /usr/src/app/examples/instrumentation_demo
 EXPOSE 8000
 CMD ["python", "app.py"]

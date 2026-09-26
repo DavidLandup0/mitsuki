@@ -86,21 +86,30 @@ class ApplicationContext:
 
         metrics.enabled gates whether metrics are recorded and rendered at all.
         instrumentation.enabled additionally instruments components and HTTP
-        requests.
+        requests, and is ignored with a warning unless metrics.enabled is set,
+        since nothing would expose what it records.
         """
         config = get_config()
+        metrics_enabled = config.get_bool("metrics.enabled")
 
-        if config.get_bool("metrics.enabled"):
+        if metrics_enabled:
             self.container.get(MetricsStorage).enable()
 
         self._register_metrics_endpoint()
 
-        if config.get_bool("instrumentation.enabled"):
-            registry = self.container.get(InstrumentationRegistry)
-            registry.enable(
-                track_memory=config.get_bool("instrumentation.track_memory")
+        if not config.get_bool("instrumentation.enabled"):
+            return
+
+        if not metrics_enabled:
+            logger.warning(
+                "instrumentation.enabled is set but metrics.enabled is not; "
+                "instrumentation stays off since nothing would expose its metrics"
             )
-            apply_instrumentation(self.application_class, registry)
+            return
+
+        registry = self.container.get(InstrumentationRegistry)
+        registry.enable(track_memory=config.get_bool("instrumentation.track_memory"))
+        apply_instrumentation(self.application_class, registry)
 
     def _scan_scheduled_tasks(self):
         """Scan all registered components for @Scheduled methods."""

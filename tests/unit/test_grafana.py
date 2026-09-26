@@ -1,4 +1,5 @@
 import json
+import re
 
 from click.testing import CliRunner
 
@@ -45,11 +46,49 @@ class TestGrafanaDashboardCommand:
     """The CLI writes the dashboard to the requested location."""
 
     def test_writes_dashboard_to_output_dir(self, tmp_path):
-        result = CliRunner().invoke(
-            cli, ["grafana-dashboard", "-o", str(tmp_path)]
-        )
+        result = CliRunner().invoke(cli, ["grafana-dashboard", "-o", str(tmp_path)])
 
         assert result.exit_code == 0
         written = tmp_path / DASHBOARD_FILENAME
         assert written.exists()
         assert json.loads(written.read_text())["panels"]
+
+
+class TestFrameworkDashboardIsGeneric:
+    """The shipped dashboard must only query metrics Mitsuki itself emits."""
+
+    # Metric names emitted by the framework (instrumentation + scheduler + system).
+    FRAMEWORK_PREFIXES = (
+        "http_requests_total",
+        "http_request_duration_seconds",
+        "component_calls_total",
+        "component_duration_seconds",
+        "scheduler_task_executions_total",
+        "scheduler_task_duration_seconds",
+        "scheduler_tasks_running",
+        "system_memory_bytes",
+        "system_cpu_percent",
+        "system_traced_memory_bytes",
+    )
+
+    def _metric_names(self, expr):
+        tokens = re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", expr)
+        # A metric name is a token that looks like one of ours by suffix.
+        return {
+            t
+            for t in tokens
+            if t.endswith(("_total", "_seconds", "_bytes", "_percent", "_running"))
+        }
+
+    def test_dashboard_references_only_framework_metrics(self):
+        dashboard = json.loads(dashboard_json())
+
+        referenced = set()
+        for panel in dashboard["panels"]:
+            for target in panel.get("targets", []):
+                referenced |= self._metric_names(target.get("expr", ""))
+
+        foreign = {m for m in referenced if not m.startswith(self.FRAMEWORK_PREFIXES)}
+        assert foreign == set(), (
+            f"framework dashboard references non-framework metrics: {sorted(foreign)}"
+        )

@@ -1,7 +1,7 @@
 import inspect
 import logging
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Optional
 
 import uvicorn
 from granian import Granian
@@ -23,6 +23,21 @@ from mitsuki.exceptions import DataException
 from mitsuki.web.parameter_binder import ParameterBinder
 from mitsuki.web.response_processor import ResponseProcessor
 from mitsuki.web.route_builder import RouteBuilder
+
+
+def _active_instrumentation() -> Optional[InstrumentationRegistry]:
+    """
+    Return the instrumentation registry if instrumentation is running.
+
+    initialize_metrics enables the registry only when metrics are enabled too,
+    so the registry's state, not instrumentation.enabled alone, is the
+    deciding flag.
+    """
+    if not get_config().get_bool("instrumentation.enabled"):
+        return None
+
+    registry = get_container().get(InstrumentationRegistry)
+    return registry if registry.enabled else None
 
 
 class MitsukiASGIApp:
@@ -80,10 +95,7 @@ class MitsukiASGIApp:
         scheduler = get_scheduler()
         await scheduler.start()
 
-        instrumented = get_config().get_bool("instrumentation.enabled")
-        registry = (
-            get_container().get(InstrumentationRegistry) if instrumented else None
-        )
+        registry = _active_instrumentation()
         if registry:
             registry.start_background_collection()
 
@@ -110,14 +122,16 @@ class MitsukiASGIApp:
         middleware = []
 
         # Instrumentation middleware (must be first to track all requests)
-        config = get_config()
-        if config.get_bool("instrumentation.enabled"):
-            registry = get_container().get(InstrumentationRegistry)
+        registry = _active_instrumentation()
+        if registry:
+            # Scrapes are monitoring overhead, not application traffic.
+            metrics_path = get_config().get("metrics.path", "/metrics")
             middleware.append(
                 Middleware(
                     InstrumentationMiddleware,
                     registry=registry,
                     routes=build_route_map(routes),
+                    excluded={metrics_path, f"{metrics_path}/prometheus"},
                 )
             )
 

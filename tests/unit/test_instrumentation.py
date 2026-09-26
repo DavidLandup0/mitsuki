@@ -7,7 +7,7 @@ import pytest
 from starlette.routing import Mount, Route
 
 import mitsuki.core.decorators as decorators
-from mitsuki.core.application import ApplicationContext
+from mitsuki.core.application import Application, ApplicationContext
 from mitsuki.core.container import get_container
 from mitsuki.core.decorators import Service
 from mitsuki.core.instrumentation import (
@@ -81,6 +81,17 @@ class TestRegistryRecording:
         registry.disable()
         assert registry.enabled is False
 
+    def test_enable_without_psutil_names_the_extra(self):
+        registry = InstrumentationRegistry(MetricsStorage())
+
+        with patch(
+            "mitsuki.core.instrumentation.importlib.util.find_spec", return_value=None
+        ):
+            with pytest.raises(RuntimeError, match=r"mitsuki\[metrics\]"):
+                registry.enable()
+
+        assert registry.enabled is False
+
     def test_record_http_request(self):
         registry = enabled_registry()
         registry.record_http_request("GET", "/api/users", 200, 0.5)
@@ -104,7 +115,9 @@ class TestRegistryRecording:
 
         assert calls(registry, "UserService", "get_user") == 1.0
         histogram = registry._core.histogram("component_duration_seconds")
-        assert histogram.get_count({"component": "UserService", "method": "get_user"}) == 1
+        assert (
+            histogram.get_count({"component": "UserService", "method": "get_user"}) == 1
+        )
 
     def test_record_component_call_failure(self):
         registry = enabled_registry()
@@ -215,6 +228,28 @@ class TestInstrumentedSelectivity:
         OrderService().create()
 
         assert calls(registry, "OrderService", "create") == 1.0
+
+    @pytest.mark.parametrize("instrumented_outermost", [True, False])
+    def test_application_opt_in_is_independent_of_decorator_order(
+        self, instrumented_outermost
+    ):
+        @Service()
+        class InvoiceService:
+            def issue(self):
+                return "issued"
+
+        class App:
+            pass
+
+        if instrumented_outermost:
+            App = Instrumented()(Application(App))
+        else:
+            App = Application(Instrumented()(App))
+
+        registry = instrument(App)
+        InvoiceService().issue()
+
+        assert calls(registry, "InvoiceService", "issue") == 1.0
 
     def test_component_opts_out_of_application_instrumentation(self):
         @Instrumented(enabled=False)
@@ -349,6 +384,79 @@ class TestWrappingMechanics:
         assert "component_calls_total" not in registry._core.counters
 
 
+class TestInheritance:
+    """Each call is recorded once, against the class of the instance called."""
+
+    def test_instrumented_subclass_of_instrumented_parent_records_once(self):
+        @Instrumented()
+        @Service()
+        class BaseStore:
+            def load(self):
+                return "loaded"
+
+        @Instrumented()
+        @Service()
+        class CachedStore(BaseStore):
+            pass
+
+        registry = instrument()
+        CachedStore().load()
+
+        assert calls(registry, "CachedStore", "load") == 1.0
+        assert calls(registry, "BaseStore", "load") == 0.0
+
+    def test_parent_call_is_attributed_to_parent(self):
+        @Instrumented()
+        @Service()
+        class BaseStore:
+            def load(self):
+                return "loaded"
+
+        @Instrumented()
+        @Service()
+        class CachedStore(BaseStore):
+            pass
+
+        registry = instrument()
+        BaseStore().load()
+
+        assert calls(registry, "BaseStore", "load") == 1.0
+        assert calls(registry, "CachedStore", "load") == 0.0
+
+    def test_method_inherited_from_plain_base_is_tracked(self):
+        class Auditing:
+            def audit(self):
+                return "audited"
+
+        @Instrumented()
+        @Service()
+        class AccountService(Auditing):
+            pass
+
+        registry = instrument()
+        AccountService().audit()
+
+        assert calls(registry, "AccountService", "audit") == 1.0
+
+    def test_async_subclass_call_records_once(self):
+        @Instrumented()
+        @Service()
+        class BaseClient:
+            async def fetch(self):
+                return "fetched"
+
+        @Instrumented()
+        @Service()
+        class RetryingClient(BaseClient):
+            pass
+
+        registry = instrument()
+        asyncio.run(RetryingClient().fetch())
+
+        assert calls(registry, "RetryingClient", "fetch") == 1.0
+        assert calls(registry, "BaseClient", "fetch") == 0.0
+
+
 class TestDescriptorBinding:
     """Instrumentation preserves how methods bind to class and instance."""
 
@@ -420,6 +528,46 @@ class TestCustomMetricsProvider:
         provider.record_metric("user_registrations", 1, {"source": "web"})
 
         assert "user_registrations" not in storage.counters
+
+    @pytest.mark.parametrize("enabled", [True, False])
+    def test_invalid_metric_name_rejected(self, enabled):
+        storage = MetricsStorage()
+        if enabled:
+            storage.enable()
+        provider = InstrumentationProvider(storage)
+
+        with pytest.raises(ValueError, match="Invalid metric name"):
+            provider.record_metric("user-registrations", 1)
+
+    @pytest.mark.parametrize("label", ["source-system", "1source", "a.b", "__name"])
+    @pytest.mark.parametrize("enabled", [True, False])
+    def test_invalid_label_name_rejected(self, enabled, label):
+        storage = MetricsStorage()
+        if enabled:
+            storage.enable()
+        provider = InstrumentationProvider(storage)
+
+        with pytest.raises(ValueError, match="Invalid label name"):
+            provider.record_metric("user_registrations", 1, {label: "web"})
+
+    def test_name_colliding_with_builtin_histogram_rejected(self):
+        storage = MetricsStorage()
+        storage.enable()
+        storage.histogram("http_request_duration_seconds")
+        provider = InstrumentationProvider(storage)
+
+        with pytest.raises(ValueError, match="already registered as a histogram"):
+            provider.record_metric("http_request_duration_seconds", 1)
+
+    def test_invalid_metric_never_reaches_prometheus_output(self):
+        storage = MetricsStorage()
+        storage.enable()
+        provider = InstrumentationProvider(storage)
+
+        with pytest.raises(ValueError):
+            provider.record_metric("bad-name", 1)
+
+        assert "bad-name" not in format_prometheus(storage)
 
 
 class TestRenderingGate:
@@ -528,6 +676,88 @@ class TestMetricsEndpointRegistrationOrder:
         assert "MetricsController" in registered
 
 
+def _initialize(metrics_enabled: bool, instrumentation_enabled: bool, app_cls):
+    """Run initialize_metrics against the given flags; return the registry."""
+    get_container().register(MetricsStorage, name="MetricsStorage")
+    get_container().register(InstrumentationRegistry, name="InstrumentationRegistry")
+
+    config = Mock()
+    config.get_bool.side_effect = lambda key, default=None: {
+        "metrics.enabled": metrics_enabled,
+        "instrumentation.enabled": instrumentation_enabled,
+        "instrumentation.track_memory": False,
+    }.get(key, False)
+    config.get.side_effect = lambda key, default=None: {
+        "metrics.path": "/metrics",
+        "metrics.allowed_ips": [],
+    }.get(key, default)
+
+    context = SimpleNamespace(
+        container=get_container(),
+        application_class=app_cls,
+        _register_metrics_endpoint=lambda: create_metrics_endpoint(config),
+    )
+
+    with patch("mitsuki.core.application.get_config", return_value=config):
+        ApplicationContext.initialize_metrics(context)
+
+    return get_container().get(InstrumentationRegistry)
+
+
+class TestInstrumentationRequiresMetrics:
+    """Instrumentation without metrics.enabled is a warned no-op."""
+
+    def test_instrumentation_without_metrics_stays_off(self, caplog):
+        @Service()
+        class LedgerService:
+            def post(self):
+                return "posted"
+
+        @Instrumented()
+        class App:
+            pass
+
+        with caplog.at_level("WARNING"):
+            registry = _initialize(False, True, App)
+
+        assert registry.enabled is False
+        assert not LedgerService.__dict__.get("_instrumentation_applied")
+        assert "metrics.enabled is not" in caplog.text
+
+    def test_instrumentation_with_metrics_is_enabled(self):
+        @Service()
+        class LedgerService:
+            def post(self):
+                return "posted"
+
+        @Instrumented()
+        class App:
+            pass
+
+        registry = _initialize(True, True, App)
+
+        assert registry.enabled is True
+        assert LedgerService.__dict__.get("_instrumentation_applied") is True
+
+
+class TestMetricsEndpointsNotInstrumented:
+    """Scrapes of the metrics endpoints are not recorded as application traffic."""
+
+    def test_metrics_controller_skipped_by_application_instrumentation(self):
+        @Instrumented()
+        class App:
+            pass
+
+        _initialize(True, True, App)
+
+        metrics_controller = next(
+            cls
+            for cls, _ in get_all_controllers()
+            if cls.__name__ == "MetricsController"
+        )
+        assert not metrics_controller.__dict__.get("_instrumentation_applied")
+
+
 def _endpoint():
     return None
 
@@ -563,15 +793,25 @@ class TestRouteMap:
 
         assert mapping == {_endpoint: "/health"}
 
+    @pytest.mark.parametrize(
+        "paths",
+        [
+            ["/users/{user_id}", "/users/{user_id}/"],
+            ["/users/{user_id}/", "/users/{user_id}"],
+        ],
+    )
+    def test_trailing_slash_alias_keeps_canonical_template(self, paths):
+        routes = [Route(path, _endpoint) for path in paths]
+
+        assert build_route_map(routes) == {_endpoint: "/users/{user_id}"}
+
 
 class TestHttpMiddleware:
     """The middleware labels requests by matched route template."""
 
     def test_records_matched_route_template(self):
         registry = enabled_registry()
-        mw = InstrumentationMiddleware(
-            None, registry, {_endpoint: "/users/{user_id}"}
-        )
+        mw = InstrumentationMiddleware(None, registry, {_endpoint: "/users/{user_id}"})
 
         asyncio.run(
             _run_asgi(mw, {"type": "http", "method": "GET", "endpoint": _endpoint})
@@ -579,9 +819,7 @@ class TestHttpMiddleware:
 
         counter = registry._core.counter("http_requests_total")
         assert (
-            counter.get(
-                {"method": "GET", "path": "/users/{user_id}", "status": "200"}
-            )
+            counter.get({"method": "GET", "path": "/users/{user_id}", "status": "200"})
             == 1.0
         )
 
@@ -596,6 +834,34 @@ class TestHttpMiddleware:
             counter.get({"method": "GET", "path": "<unmatched>", "status": "404"})
             == 1.0
         )
+
+    def test_excluded_template_is_not_recorded(self):
+        registry = enabled_registry()
+        mw = InstrumentationMiddleware(
+            None, registry, {_endpoint: "/metrics/prometheus"}, {"/metrics/prometheus"}
+        )
+
+        asyncio.run(
+            _run_asgi(mw, {"type": "http", "method": "GET", "endpoint": _endpoint})
+        )
+
+        assert registry._core.counter("http_requests_total").samples() == []
+
+    def test_excluded_template_does_not_swallow_errors(self):
+        registry = enabled_registry()
+        mw = InstrumentationMiddleware(
+            None, registry, {_endpoint: "/metrics"}, {"/metrics"}
+        )
+
+        async def failing_app(scope, receive, send):
+            raise RuntimeError("handler failed")
+
+        mw.app = failing_app
+
+        with pytest.raises(RuntimeError, match="handler failed"):
+            asyncio.run(
+                mw({"type": "http", "method": "GET", "endpoint": _endpoint}, None, None)
+            )
 
     def test_non_http_scope_is_not_recorded(self):
         registry = enabled_registry()

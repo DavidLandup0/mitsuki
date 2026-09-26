@@ -265,3 +265,65 @@ class TestFormatterIntegration:
         assert prom_output
         assert "instrumentation" in mitsuki_output
         assert "http" in mitsuki_output["instrumentation"]
+
+
+class TestEmptyFamilies:
+    """Registered metrics without samples are left out of both formats."""
+
+    def _registered_but_unused(self) -> MetricsStorage:
+        storage = MetricsStorage()
+        storage.enable()
+        storage.counter("scheduler_task_executions_total", "Executions")
+        storage.histogram("scheduler_task_duration_seconds", "Duration")
+        storage.gauge("scheduler_tasks_running", "Running")
+        storage.counter("http_requests_total", "Requests")
+        return storage
+
+    def test_prometheus_omits_families_without_samples(self):
+        storage = self._registered_but_unused()
+        storage.counter("orders_total", "Orders").inc()
+
+        output = format_prometheus(storage)
+
+        assert "scheduler_" not in output
+        assert "http_requests_total" not in output
+        assert "# TYPE orders_total counter" in output
+
+    def test_json_omits_scheduler_without_tasks(self):
+        result = format_json(self._registered_but_unused())
+
+        assert "scheduler" not in result
+
+    def test_json_omits_http_without_requests(self):
+        result = format_json(self._registered_but_unused())
+
+        assert "http" not in result.get("instrumentation", {})
+
+
+class TestSchedulerAverageDuration:
+    """A measured average of zero is reported as zero, not as missing."""
+
+    def test_zero_average_is_reported(self):
+        storage = MetricsStorage()
+        storage.enable()
+        storage.counter("scheduler_task_executions_total").inc(
+            {"task": "Bg.noop", "status": "success"}
+        )
+        storage.histogram("scheduler_task_duration_seconds").observe(
+            0.0, {"task": "Bg.noop"}
+        )
+
+        task = format_json(storage)["scheduler"]["tasks"][0]
+
+        assert task["average_duration_ms"] == 0.0
+
+    def test_unmeasured_average_is_none(self):
+        storage = MetricsStorage()
+        storage.enable()
+        storage.counter("scheduler_task_executions_total").inc(
+            {"task": "Bg.failing", "status": "failure"}
+        )
+
+        task = format_json(storage)["scheduler"]["tasks"][0]
+
+        assert task["average_duration_ms"] is None

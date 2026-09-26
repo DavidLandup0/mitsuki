@@ -1,5 +1,3 @@
-import time
-
 import pytest
 
 from mitsuki.core.metrics_core import (
@@ -355,20 +353,6 @@ class TestMetricsStorage:
         assert len(storage.gauges) == 1
         assert len(storage.histograms) == 1
 
-    def test_storage_get_all_metrics(self):
-        """Test getting all registered metrics."""
-        storage = MetricsStorage()
-
-        storage.counter("requests_total")
-        storage.gauge("memory_bytes")
-        storage.histogram("request_duration")
-
-        all_metrics = storage.get_all_metrics()
-
-        assert "requests_total" in all_metrics["counters"]
-        assert "memory_bytes" in all_metrics["gauges"]
-        assert "request_duration" in all_metrics["histograms"]
-
     def test_storage_metrics_independence(self):
         """Test that metrics from different storages are independent."""
         storage1 = MetricsStorage()
@@ -393,15 +377,6 @@ class TestMetricSample:
 
         assert sample.labels == {"method": "GET"}
         assert sample.value == 42.0
-        assert sample.timestamp is not None
-
-    def test_sample_timestamp_auto_generated(self):
-        """Test that timestamp is auto-generated."""
-        sample1 = MetricSample(labels={}, value=1.0)
-        time.sleep(0.01)
-        sample2 = MetricSample(labels={}, value=2.0)
-
-        assert sample2.timestamp > sample1.timestamp
 
 
 class TestMetricsIntegration:
@@ -478,3 +453,46 @@ class TestMetricsIntegration:
         assert requests.get({"status": "200"}) == 1.0
         assert active.get() == 0.0
         assert duration.get_count({"endpoint": "/api/users"}) == 1
+
+
+class TestMetricNameValidation:
+    """Names that would break the Prometheus exposition are rejected."""
+
+    @pytest.mark.parametrize(
+        "name", ["user-registrations", "1st_metric", "orders.created", "", "a b"]
+    )
+    @pytest.mark.parametrize("kind", ["counter", "gauge", "histogram"])
+    def test_invalid_names_rejected(self, kind, name):
+        storage = MetricsStorage()
+
+        with pytest.raises(ValueError, match="Invalid metric name"):
+            getattr(storage, kind)(name)
+
+    @pytest.mark.parametrize("name", ["orders_total", "http:requests", "_private"])
+    def test_valid_names_accepted(self, name):
+        storage = MetricsStorage()
+
+        assert storage.counter(name).name == name
+
+    @pytest.mark.parametrize(
+        "existing, requested",
+        [
+            ("counter", "gauge"),
+            ("counter", "histogram"),
+            ("gauge", "counter"),
+            ("gauge", "histogram"),
+            ("histogram", "counter"),
+            ("histogram", "gauge"),
+        ],
+    )
+    def test_name_cannot_be_reused_across_types(self, existing, requested):
+        storage = MetricsStorage()
+        getattr(storage, existing)("shared_name")
+
+        with pytest.raises(ValueError, match="already registered as a"):
+            getattr(storage, requested)("shared_name")
+
+    def test_same_type_lookup_returns_existing(self):
+        storage = MetricsStorage()
+
+        assert storage.gauge("queue_depth") is storage.gauge("queue_depth")

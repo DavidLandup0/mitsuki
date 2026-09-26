@@ -9,15 +9,42 @@ Provides simple metric primitives that both scheduler and instrumentation use:
 All metrics support labels for multi-dimensional data.
 """
 
+import re
 import threading
 from bisect import bisect_left
 from collections import defaultdict
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
 from itertools import accumulate
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from mitsuki.core.decorators import Component
+
+# Prometheus exposition grammar. A name outside it makes the whole scrape fail,
+# not just the offending series.
+_METRIC_NAME = re.compile(r"[a-zA-Z_:][a-zA-Z0-9_:]*")
+_LABEL_NAME = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
+
+
+def validate_metric_name(name: str):
+    """Raise ValueError unless name is a valid Prometheus metric name."""
+    if not _METRIC_NAME.fullmatch(name):
+        raise ValueError(
+            f"Invalid metric name {name!r}: must match {_METRIC_NAME.pattern}"
+        )
+
+
+def validate_label_names(labels: Dict[str, str]):
+    """
+    Raise ValueError unless every label name is a valid Prometheus label name.
+
+    Names starting with "__" are reserved by Prometheus.
+    """
+    for name in labels:
+        if not _LABEL_NAME.fullmatch(name) or name.startswith("__"):
+            raise ValueError(
+                f"Invalid label name {name!r}: must match {_LABEL_NAME.pattern} "
+                "and not start with '__'"
+            )
 
 
 @dataclass
@@ -26,7 +53,6 @@ class MetricSample:
 
     labels: Dict[str, str]
     value: float
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Counter:
@@ -225,9 +251,7 @@ class Histogram:
                 total_sum = self._sum[label_key]
                 total_count = self._count[label_key]
                 counts = self._buckets_data.get(label_key)
-                buckets = (
-                    list(zip(self.buckets, accumulate(counts))) if counts else []
-                )
+                buckets = list(zip(self.buckets, accumulate(counts))) if counts else []
                 result.append((labels, total_sum, total_count, buckets))
             return result
 
@@ -257,12 +281,14 @@ class MetricsStorage:
     def counter(self, name: str, help_text: str = "") -> Counter:
         """Get or create a counter."""
         if name not in self.counters:
+            self._check_new_name(name)
             self.counters[name] = Counter(name, help_text)
         return self.counters[name]
 
     def gauge(self, name: str, help_text: str = "") -> Gauge:
         """Get or create a gauge."""
         if name not in self.gauges:
+            self._check_new_name(name)
             self.gauges[name] = Gauge(name, help_text)
         return self.gauges[name]
 
@@ -271,13 +297,23 @@ class MetricsStorage:
     ) -> Histogram:
         """Get or create a histogram."""
         if name not in self.histograms:
+            self._check_new_name(name)
             self.histograms[name] = Histogram(name, help_text, buckets)
         return self.histograms[name]
 
-    def get_all_metrics(self) -> Dict[str, Any]:
-        """Get all registered metrics."""
-        return {
-            "counters": list(self.counters.keys()),
-            "gauges": list(self.gauges.keys()),
-            "histograms": list(self.histograms.keys()),
-        }
+    def _check_new_name(self, name: str):
+        """
+        Validate a name about to be registered.
+
+        One name registered under two metric types would render two conflicting
+        TYPE lines, which Prometheus rejects.
+        """
+        validate_metric_name(name)
+
+        for kind, metrics in (
+            ("counter", self.counters),
+            ("gauge", self.gauges),
+            ("histogram", self.histograms),
+        ):
+            if name in metrics:
+                raise ValueError(f"Metric {name!r} is already registered as a {kind}")

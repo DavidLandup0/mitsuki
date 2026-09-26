@@ -52,6 +52,9 @@ def _extract_scheduler_metrics(registry: MetricsStorage) -> Dict[str, Any]:
             if task_name:
                 task_names.add(task_name)
 
+    if not task_names:
+        return {}
+
     # Build task statistics
     for task_name in sorted(task_names):
         task_labels = {"task": task_name}
@@ -83,7 +86,7 @@ def _extract_scheduler_metrics(registry: MetricsStorage) -> Dict[str, Any]:
                 "executions": int(total_executions),
                 "failures": int(failure_count),
                 "average_duration_ms": round(avg_duration_ms, 2)
-                if avg_duration_ms
+                if avg_duration_ms is not None
                 else None,
                 "status": "running" if is_running else "idle",
             }
@@ -155,15 +158,19 @@ def _extract_http_metrics(registry: MetricsStorage) -> Dict[str, Any]:
     requests_counter = registry.counters["http_requests_total"]
     duration_hist = registry.histograms.get("http_request_duration_seconds")
 
+    samples = requests_counter.samples()
+    if not samples:
+        return {}
+
     # Aggregate by method
     by_method = {}
-    for sample in requests_counter.samples():
+    for sample in samples:
         method = sample.labels.get("method", "UNKNOWN")
         by_method[method] = by_method.get(method, 0) + sample.value
 
     # Aggregate by status
     by_status = {}
-    for sample in requests_counter.samples():
+    for sample in samples:
         status = sample.labels.get("status", "unknown")
         by_status[status] = by_status.get(status, 0) + sample.value
 
@@ -228,9 +235,7 @@ def _extract_component_metrics(registry: MetricsStorage) -> Dict[str, Any]:
         )
         for method_name in method_names:
             method_calls = calls_by_method[(component_name, method_name)]
-            method_sum, method_count = duration_by_method[
-                (component_name, method_name)
-            ]
+            method_sum, method_count = duration_by_method[(component_name, method_name)]
 
             total_calls += method_calls
             component_sum += method_sum
@@ -269,28 +274,40 @@ def format_prometheus(registry: MetricsStorage) -> str:
 
     lines = []
 
+    # A family with no samples carries no information, so it is omitted
+    # entirely, HELP and TYPE included.
+
     # Counters
     for name, counter in registry.counters.items():
+        samples = counter.samples()
+        if not samples:
+            continue
         lines.append(f"# HELP {name} {counter.help_text}")
         lines.append(f"# TYPE {name} counter")
-        for sample in counter.samples():
+        for sample in samples:
             labels_str = _format_labels(sample.labels)
             lines.append(f"{name}{labels_str} {sample.value}")
 
     # Gauges
     for name, gauge in registry.gauges.items():
+        samples = gauge.samples()
+        if not samples:
+            continue
         lines.append(f"# HELP {name} {gauge.help_text}")
         lines.append(f"# TYPE {name} gauge")
-        for sample in gauge.samples():
+        for sample in samples:
             labels_str = _format_labels(sample.labels)
             lines.append(f"{name}{labels_str} {sample.value}")
 
     # Histograms
     for name, histogram in registry.histograms.items():
+        samples = histogram.samples()
+        if not samples:
+            continue
         lines.append(f"# HELP {name} {histogram.help_text}")
         lines.append(f"# TYPE {name} histogram")
 
-        for labels, total_sum, total_count, buckets in histogram.samples():
+        for labels, total_sum, total_count, buckets in samples:
             labels_str_base = _format_labels(labels) if labels else ""
 
             # Bucket counts (already cumulative from Histogram.observe)
@@ -313,12 +330,7 @@ def format_prometheus(registry: MetricsStorage) -> str:
 
 def _escape_label_value(value: str) -> str:
     """Escape a label value per the Prometheus exposition format."""
-    return (
-        str(value)
-        .replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-    )
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
 def _format_labels(labels: Dict[str, str]) -> str:
@@ -326,7 +338,5 @@ def _format_labels(labels: Dict[str, str]) -> str:
     if not labels:
         return ""
 
-    label_pairs = [
-        f'{k}="{_escape_label_value(v)}"' for k, v in sorted(labels.items())
-    ]
+    label_pairs = [f'{k}="{_escape_label_value(v)}"' for k, v in sorted(labels.items())]
     return "{" + ",".join(label_pairs) + "}"

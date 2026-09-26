@@ -100,9 +100,14 @@ class TaskScheduler:
         )
 
     async def _execute_tracked(self, method, method_name: str):
-        """Run a scheduled method, counting it as running for its duration."""
+        """
+        Run a scheduled method, counting it as running for its duration while
+        metrics are enabled.
+        """
+        tracked = self._metrics.enabled
         running = self._metrics.gauge("scheduler_tasks_running")
-        running.inc({"task": method_name})
+        if tracked:
+            running.inc({"task": method_name})
         try:
             if inspect.iscoroutinefunction(method):
                 await method()
@@ -110,7 +115,8 @@ class TaskScheduler:
                 # Support sync methods by running in executor
                 await asyncio.get_event_loop().run_in_executor(None, method)
         finally:
-            running.dec({"task": method_name})
+            if tracked:
+                running.dec({"task": method_name})
 
     def _record_success(
         self, stats: "TaskStatistics", method_name: str, duration_sec: float
@@ -121,6 +127,9 @@ class TaskScheduler:
         stats.last_execution = datetime.now()
         stats.last_duration_ms = duration_ms
         stats.total_duration_ms += duration_ms
+
+        if not self._metrics.enabled:
+            return
 
         self._metrics.counter("scheduler_task_executions_total").inc(
             {"task": method_name, "status": "success"}
@@ -134,9 +143,10 @@ class TaskScheduler:
     ):
         """Record a failed execution in statistics and metrics."""
         stats.failures += 1
-        self._metrics.counter("scheduler_task_executions_total").inc(
-            {"task": method_name, "status": "failure"}
-        )
+        if self._metrics.enabled:
+            self._metrics.counter("scheduler_task_executions_total").inc(
+                {"task": method_name, "status": "failure"}
+            )
         logger.error(
             f"Scheduled task {method_name} failed with error: {error}",
             exc_info=True,
