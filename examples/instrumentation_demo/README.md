@@ -59,6 +59,18 @@ curl http://localhost:8000/api/orders/user/1
 curl http://localhost:8000/api/orders/revenue
 ```
 
+`OrderReconciliationService.reconcile_orders` runs every 10 seconds as a
+`@Scheduled` task and fails while any order has a non-positive amount. To see a
+failing task on the dashboard, create one:
+
+```bash
+curl -X POST http://localhost:8000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": 1, "product_type": "digital", "amount": -1}'
+```
+
+The database is in-memory, so restarting the app clears the invalid order.
+
 ### 3. View metrics
 
 **Grafana Dashboard:**
@@ -85,6 +97,7 @@ All services, repositories, and controllers are automatically instrumented:
 - **HTTP requests**: Status codes, request/duration histograms (percentiles via Prometheus), per-endpoint stats
 - **Component calls**: Count, error rate, average execution time (per component and method)
 - **System resources**: CPU usage, memory (RSS, VMS)
+- **Scheduled tasks**: `OrderReconciliationService.reconcile_orders` executions, failures and duration
 
 ### Custom Operational Metrics
 
@@ -255,7 +268,8 @@ instrumentation_demo/
     │   └── order_controller.py     # REST endpoints for orders
     ├── services/
     │   ├── user_service.py         # Business logic
-    │   └── order_service.py        
+    │   ├── order_service.py
+    │   └── order_reconciliation_service.py  # @Scheduled reconciliation task        
     ├── repositories/
     │   ├── user_repository.py      # Data access, auto-instrumented
     │   └── order_repository.py     # In-memory storage

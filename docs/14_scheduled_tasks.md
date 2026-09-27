@@ -22,8 +22,7 @@ Mitsuki provides built-in task scheduling through the `@Scheduled` decorator, in
 - Cron macros (`@hourly`, `@daily`, etc.)
 - Timezone support for cron expressions
 - Initial delay before first execution (`initial_delay`)
-- Task statistics and metrics
-- Optional `/metrics` REST endpoint
+- Task statistics, and metrics at `/metrics` and `/metrics/prometheus` when `metrics.enabled` is set
 - Async and sync method support
 - Automatic error handling and logging
 - Lifecycle integration (start/stop with application)
@@ -329,41 +328,6 @@ class CacheService:
         return []
 ```
 
-### Metrics Collection
-
-```python
-import psutil
-from mitsuki import Service, Scheduled
-
-@Service()
-class MetricsService:
-    def __init__(self):
-        self.metrics_history = []
-
-    @Scheduled(fixed_rate=60000)  # Every minute
-    async def collect_system_metrics(self):
-        """Collect CPU and memory metrics."""
-        metrics = {
-            'timestamp': datetime.now(),
-            'cpu_percent': psutil.cpu_percent(),
-            'memory_percent': psutil.virtual_memory().percent,
-            'disk_percent': psutil.disk_usage('/').percent
-        }
-
-        self.metrics_history.append(metrics)
-
-        # Keep last 60 minutes
-        if len(self.metrics_history) > 60:
-            self.metrics_history.pop(0)
-
-        # Alert if CPU > 90%
-        if metrics['cpu_percent'] > 90:
-            await self._send_alert(f"High CPU: {metrics['cpu_percent']}%")
-
-    async def _send_alert(self, message: str):
-        print(f"ALERT: {message}")
-```
-
 ### Synchronous Tasks
 
 You can also schedule synchronous methods:
@@ -519,6 +483,8 @@ metrics:
   path: /metrics
 ```
 
+With `metrics.enabled` off, executions are not recorded as metrics; the in-process statistics described under [Programmatic Access to Statistics](#programmatic-access-to-statistics) are kept either way. The `/metrics` response shape is documented in [Instrumentation & Metrics](./15_metrics.md#metrics-endpoints).
+
 Note: Scheduler metrics work independently of `instrumentation.enabled`. However, if you want HTTP request metrics and component metrics in addition to scheduler metrics, enable instrumentation as well:
 
 ```yaml
@@ -543,8 +509,8 @@ rate(scheduler_task_executions_total{status="failure"}[5m]) / rate(scheduler_tas
 # Average task duration
 rate(scheduler_task_duration_seconds_sum[5m]) / rate(scheduler_task_duration_seconds_count[5m])
 
-# P95 task duration
-histogram_quantile(0.95, rate(scheduler_task_duration_seconds_bucket[5m]))
+# P95 task duration, per task
+histogram_quantile(0.95, sum(rate(scheduler_task_duration_seconds_bucket[5m])) by (le, task))
 ```
 
 For complete documentation on metrics, instrumentation, and Prometheus/Grafana integration, see **[Instrumentation & Metrics](./15_metrics.md)**.
@@ -555,12 +521,12 @@ Get task statistics programmatically:
 
 ```python
 from mitsuki import Service
-from mitsuki.core.scheduler import get_scheduler
+from mitsuki.core.scheduler import TaskScheduler
 
 @Service()
 class MonitoringService:
-    def __init__(self):
-        self.scheduler = get_scheduler()
+    def __init__(self, scheduler: TaskScheduler):
+        self.scheduler = scheduler
 
     async def check_task_health(self):
         """Check if scheduled tasks are healthy."""
@@ -574,11 +540,11 @@ class MonitoringService:
                 print(f"Alert: {task['name']} is not running!")
 
         return stats
+```
 
 ::: tip NOTE
-The statistics returned by `get_task_statistics()` are held in the scheduler's local memory. This is different from the metrics collected by the instrumentation system, which are stored in a central registry and exposed at the `/metrics` endpoints. This method is best for direct, in--process checks, while the `/metrics` endpoint is better for external monitoring.
+The statistics returned by `get_task_statistics()` are held in the scheduler's local memory. This is different from the metrics collected by the instrumentation system, which are stored in a central registry and exposed at the `/metrics` endpoints. This method is best for direct, in-process checks, while the `/metrics` endpoint is better for external monitoring.
 :::
-```
 
 ### Logging
 
