@@ -4,7 +4,6 @@ from typing import Callable, List, Optional, Type, Union
 from mitsuki.core.container import get_container
 from mitsuki.core.enums import Scope, StereotypeType
 
-
 # Components eligible for instrumentation, collected as stereotype decorators
 # run at import time. Instrumentation is applied at startup by
 # mitsuki.core.instrumentation.apply_instrumentation.

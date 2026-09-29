@@ -3,10 +3,13 @@ from pathlib import Path
 
 DASHBOARD_FILENAME = "dashboard.json"
 
+
 def dashboard_json() -> str:
     """Return the bundled Grafana dashboard as a JSON string."""
     return (
-        resources.files(__name__).joinpath(DASHBOARD_FILENAME).read_text(encoding="utf-8")
+        resources.files(__name__)
+        .joinpath(DASHBOARD_FILENAME)
+        .read_text(encoding="utf-8")
     )
 
 

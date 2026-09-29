@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
-
 from starlette.routing import Mount, Route
 
 import mitsuki.core.decorators as decorators

@@ -21,12 +21,12 @@ from mitsuki.core.enums import (
     SQLOperation,
 )
 
+# Instrumentation
+from mitsuki.core.instrumentation import Instrumented
+
 # Logging
 from mitsuki.core.logging import get_logger
 from mitsuki.core.utils import get_active_profile
-
-# Instrumentation
-from mitsuki.core.instrumentation import Instrumented
 
 # Data
 from mitsuki.data import (
