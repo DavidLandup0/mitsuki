@@ -2,13 +2,15 @@ import { defineConfig } from 'vitepress'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
+  base: '/mitsuki/',
+  ignoreDeadLinks: 'localhostLinks',
   title: "Mitsuki",
   description: "Python's flexibility and productivity, Spring Boot's battle-tested enterprise patterns.",
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'Documentation', link: '/examples' }
+      { text: 'Documentation', link: '/00_getting_started' }
     ],
 
     sidebar: [
@@ -40,7 +42,7 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/vuejs/vitepress' }
+      { icon: 'github', link: 'https://github.com/DavidLandup0/mitsuki' }
     ]
   }
 })

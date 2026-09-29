@@ -317,7 +317,7 @@ class UserRepository:
 **Parameters:**
 - `entity`: The entity class this repository manages
 
-**See:** [Repositories Guide](./repositories.md) for complete DSL reference, custom queries, and SQLAlchemy engine support
+**See:** [Repositories Guide](./03_repositories.md) for complete DSL reference, custom queries, and SQLAlchemy engine support
 
 ### Field Decorators
 
@@ -419,7 +419,7 @@ def my_provider(self): ...
 def my_provider(self): ...
 ```
 
-**See:** [Overview](./overview.md#dependency-injection) for provider injection details.
+**See:** [Overview](./01_overview.md#dependency-injection-di) for provider injection details.
 
 ### @Value
 
@@ -487,7 +487,7 @@ class SharedConfig:
 MITSUKI_PROFILE=production python app.py
 ```
 
-**See:** [Profiles Guide](./profiles.md) for complete documentation
+**See:** [Profiles Guide](./05_profiles.md) for complete documentation
 
 ### @Application
 

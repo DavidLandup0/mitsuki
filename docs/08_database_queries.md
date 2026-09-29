@@ -556,6 +556,6 @@ class UserService:
 
 ## See Also
 
-- [Entities and Data Layer](05_data_layer.md)
-- [Repositories](06_repositories.md)
-- [Configuration](03_configuration.md)
+- [Entities and Data Layer](03_repositories.md#entities)
+- [Repositories](03_repositories.md)
+- [Configuration](06_configuration.md)

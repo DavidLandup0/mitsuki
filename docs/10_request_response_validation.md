@@ -648,7 +648,7 @@ async def get_user(self, id: int):
 
 - [Controllers](04_controllers.md) - Controller basics and routing
 - [Response Entity](09_response_entity.md) - HTTP response handling
-- [Dependency Injection](03_dependency_injection.md) - Service injection
+- [Dependency Injection](01_overview.md#dependency-injection-di) - Service injection
 - [Database Queries](08_database_queries.md) - Working with repositories
 
 ## Summary

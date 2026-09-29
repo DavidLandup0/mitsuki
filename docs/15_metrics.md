@@ -673,7 +673,7 @@ at the output directory, or import the file through the Grafana UI. The
 dashboard queries a Prometheus datasource scraping `/metrics/prometheus`.
 
 For a fully wired setup that generates and provisions the dashboard
-automatically, see the [instrumentation demo](../examples/instrumentation_demo).
+automatically, see the [instrumentation demo](https://github.com/DavidLandup0/mitsuki/tree/main/examples/instrumentation_demo).
 
 ### Grafana Queries
 
