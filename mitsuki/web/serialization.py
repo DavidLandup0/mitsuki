@@ -32,6 +32,9 @@ _NATIVELY_ENCODED = (
     Enum,
 )
 
+# Types to_builtins leaves untouched so the encoder formats them itself.
+_BUILTIN_PASSTHROUGH = (datetime, date, time, UUID, Decimal, bytes, bytearray)
+
 # True when a registered serializer targets a natively encoded type, which is
 # the only case that needs the pre-pass below.
 _overrides_native = False
@@ -116,6 +119,18 @@ def _encode_unsupported(obj: Any) -> Any:
 
 # decimal_format="number" keeps Decimal as a JSON number rather than a string.
 _encoder = msgspec.json.Encoder(decimal_format="number", enc_hook=_encode_unsupported)
+
+
+def to_builtins(data: Any) -> Any:
+    """Convert data to the dicts, lists and scalars that serialize_json encodes."""
+    _load_custom_serializers()
+
+    if _overrides_native:
+        data = _apply_custom_serializers(data)
+
+    return msgspec.to_builtins(
+        data, builtin_types=_BUILTIN_PASSTHROUGH, enc_hook=_encode_unsupported
+    )
 
 
 def serialize_json(data: Any, indent: int = None) -> str:

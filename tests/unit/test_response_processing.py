@@ -4,8 +4,13 @@ Tests for response validation and field filtering.
 
 from dataclasses import dataclass
 
+import msgspec
 import pytest
+from starlette.testclient import TestClient
 
+from mitsuki import GetMapping, RestController
+from mitsuki.core.container import DIContainer, set_container
+from mitsuki.core.server import MitsukiASGIApp
 from mitsuki.exceptions import RequestValidationException
 from mitsuki.web.response_processor import ResponseProcessor
 
@@ -28,6 +33,32 @@ class PostDTO:
     content: str
     author_id: int
     views: int
+
+
+@dataclass
+class AccountDTO:
+    """Dataclass carrying fields that must never reach a response."""
+
+    id: int
+    password: str
+    api_key: str
+
+
+class Account:
+    """Plain object carrying fields that must never reach a response."""
+
+    def __init__(self, id: int, password: str, api_key: str):
+        self.id = id
+        self.password = password
+        self.api_key = api_key
+
+
+class AccountStruct(msgspec.Struct):
+    """msgspec Struct carrying fields that must never reach a response."""
+
+    id: int
+    password: str
+    api_key: str
 
 
 class MockContext:
@@ -207,3 +238,70 @@ class TestProcessResponseData:
         data = {"id": 1, "name": "John"}
         result = self.processor.process_response_data(data, None, [])
         assert result == data
+
+
+class TestExcludeFieldsOnObjects:
+    """Excluded fields must be removed from every shape the serializer encodes."""
+
+    def setup_method(self):
+        self.processor = ResponseProcessor()
+
+    def test_exclude_fields_from_dataclass(self):
+        result = self.processor.process_response_data(
+            AccountDTO(id=1, password="secret", api_key="key"),
+            None,
+            ["password", "api_key"],
+        )
+        assert result == {"id": 1}
+
+    def test_exclude_fields_from_plain_object(self):
+        result = self.processor.process_response_data(
+            Account(id=1, password="secret", api_key="key"),
+            None,
+            ["password", "api_key"],
+        )
+        assert result == {"id": 1}
+
+    def test_exclude_fields_from_struct(self):
+        result = self.processor.process_response_data(
+            AccountStruct(id=1, password="secret", api_key="key"),
+            None,
+            ["password", "api_key"],
+        )
+        assert result == {"id": 1}
+
+    def test_exclude_fields_from_objects_nested_in_containers(self):
+        data = {
+            "owner": Account(id=1, password="secret", api_key="key"),
+            "members": [AccountDTO(id=2, password="secret", api_key="key")],
+        }
+        result = self.processor.process_response_data(
+            data, None, ["password", "api_key"]
+        )
+        assert result == {"owner": {"id": 1}, "members": [{"id": 2}]}
+
+
+class TestExcludeFieldsEndToEnd:
+    """Excluded fields must not appear in the HTTP response body."""
+
+    def setup_method(self):
+        set_container(DIContainer())
+
+    def teardown_method(self):
+        set_container(DIContainer())
+
+    def test_object_response_omits_excluded_fields(self):
+        @RestController("/api")
+        class AccountController:
+            @GetMapping("/account", exclude_fields=["password", "api_key"])
+            async def account(self) -> Account:
+                return Account(id=1, password="secret", api_key="key")
+
+        context = MockContext()
+        context.controllers = [(AccountController, "/api")]
+        client = TestClient(MitsukiASGIApp(context))
+
+        response = client.get("/api/account")
+
+        assert response.status_code == 200
+        assert response.json() == {"id": 1}

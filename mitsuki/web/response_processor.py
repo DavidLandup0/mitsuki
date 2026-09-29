@@ -2,6 +2,7 @@ from dataclasses import asdict, is_dataclass
 from typing import Any, Optional
 
 from mitsuki.exceptions import RequestValidationException
+from mitsuki.web.serialization import to_builtins
 
 
 class ResponseProcessor:
@@ -54,13 +55,14 @@ class ResponseProcessor:
         )
 
     def exclude_fields(self, data: Any, exclude_fields: list) -> Any:
-        """Remove specified fields from response data, recursively processing nested structures."""
-        if data is None:
-            return None
+        """Remove specified fields from response data at every nesting level."""
+        return self._drop_fields(to_builtins(data), exclude_fields)
 
+    def _drop_fields(self, data: Any, exclude_fields: list) -> Any:
+        """Remove specified fields from builtin dicts and lists, recursively."""
         # Handle lists
         if isinstance(data, list):
-            return [self.exclude_fields(item, exclude_fields) for item in data]
+            return [self._drop_fields(item, exclude_fields) for item in data]
 
         # Handle dicts
         if isinstance(data, dict):
@@ -68,7 +70,7 @@ class ResponseProcessor:
             for k, v in data.items():
                 if k not in exclude_fields:
                     # Recursively process nested structures
-                    result[k] = self.exclude_fields(v, exclude_fields)
+                    result[k] = self._drop_fields(v, exclude_fields)
             return result
 
         # Return as-is for other types
