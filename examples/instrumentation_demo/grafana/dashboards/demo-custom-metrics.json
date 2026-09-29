@@ -39,6 +39,105 @@
         "x": 0,
         "y": 0
       },
+      "id": 6,
+      "panels": [],
+      "title": "Business Metrics",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(orders_created_total[5m])) by (product_type, region) * 60",
+          "legendFormat": "{{product_type}} - {{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Orders Created per Minute",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
       "id": 1,
       "panels": [],
       "title": "Custom Operational Metrics",
@@ -101,7 +200,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 1
+        "y": 10
       },
       "id": 2,
       "options": {
@@ -175,14 +274,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 100
-              },
-              {
-                "color": "red",
-                "value": 1000
               }
             ]
           },
@@ -194,7 +285,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 1
+        "y": 10
       },
       "id": 3,
       "options": {
@@ -215,12 +306,12 @@
       },
       "targets": [
         {
-          "expr": "database_query_rows_returned",
-          "legendFormat": "{{table}} - {{query_type}}",
+          "expr": "sum(rate(database_rows_returned_total[5m])) by (table, query)",
+          "legendFormat": "{{table}} - {{query}}",
           "refId": "A"
         }
       ],
-      "title": "Query Result Sizes (Rows Returned)",
+      "title": "Rows Returned per Second",
       "type": "timeseries"
     },
     {
@@ -258,7 +349,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 18
       },
       "id": 4,
       "options": {
@@ -340,7 +431,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 18
       },
       "id": 5,
       "options": {
@@ -361,7 +452,7 @@
       "targets": [
         {
           "expr": "rate(expensive_aggregation_total[5m])",
-          "legendFormat": "{{operation}} ({{records_processed}} records)",
+          "legendFormat": "{{operation}}",
           "refId": "A"
         }
       ],

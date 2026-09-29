@@ -19,11 +19,12 @@ instrumentation:
 metrics:
   enabled: true
   path: /metrics
-  # Allow access from:
-  # - Localhost (127.0.0.1) - for running the app directly, outside Docker
-  # - Docker internal network range (172.16.0.0/12) - i.e. 172.16.0.0 to 172.31.255.255
-  # - Local network range (192.168.0.0/16)
-  allowed_ips: ["127.0.0.1", "172.16.0.0/12", "192.168.0.0/16"]  # Empty list = allow all. For production, specify your network ranges.
+  # Addresses allowed to read the metrics endpoints. An empty list allows all.
+  # - 127.0.0.1: requests from your machine when running app.py directly
+  # - 172.16.0.0/12: Docker networks, which is where Prometheus scrapes from
+  # - 192.168.0.0/16: requests from your machine to the container on Docker
+  #   Desktop, which forwards them from 192.168.65.1
+  allowed_ips: ["127.0.0.1", "172.16.0.0/12", "192.168.0.0/16"]
 
 scheduler:
   enabled: true

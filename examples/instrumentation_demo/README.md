@@ -5,8 +5,9 @@ This example demonstrates Mitsuki's instrumentation and metrics capabilities wit
 - **Auto-instrumentation**: Single `@Instrumented` decorator on `@Application` instruments all components
 - **System metrics**: CPU and memory (RSS, VMS) tracking
 - **HTTP metrics**: Request counts, latency percentiles, per-endpoint statistics
-- **Component metrics**: Service/repository method timing, error rates
-- **Custom operational metrics**: Database operations, query performance, resource usage
+- **Component metrics**: Call counts, failures and durations for every controller, service and repository method
+- **Scheduler metrics**: Executions, failures and duration of a `@Scheduled` task
+- **Custom metrics**: A business metric (orders created) and operational metrics (database writes, rows read, full scans)
 - **Grafana dashboards**: Pre-configured for visualization
 - **Prometheus format**: Compatible with Prometheus/Grafana scraping
 
@@ -92,32 +93,25 @@ curl http://localhost:8000/metrics/prometheus
 
 ### Automatic Metrics
 
-All services, repositories, and controllers are automatically instrumented:
+`@Instrumented()` on `App` instruments every controller, service and repository,
+including the `@CrudRepository` repositories:
 
-- **HTTP requests**: Status codes, request/duration histograms (percentiles via Prometheus), per-endpoint stats
-- **Component calls**: Count, error rate, average execution time (per component and method)
+- **HTTP requests**: Counts by method, route template and status; duration histograms (percentiles via Prometheus)
+- **Component calls**: Count, failures and duration per component and method
 - **System resources**: CPU usage, memory (RSS, VMS)
 - **Scheduled tasks**: `OrderReconciliationService.reconcile_orders` executions, failures and duration
 
-### Custom Operational Metrics
+### Custom Metrics
 
-The `OrderService` demonstrates tracking operational metrics:
+`OrderService` records these through `InstrumentationProvider`. All are counters.
 
-1. **Database Write Operations** (`database_writes_total`)
-   - Tracks all INSERT/UPDATE/DELETE operations
-   - Labels: `table`, `operation`
-
-2. **Query Result Sizes** (`database_query_rows_returned`)
-   - Tracks how many rows each query returns
-   - Labels: `table`, `query_type`
-
-3. **Full Table Scans** (`database_full_scan_total`)
-   - Counts expensive table scan operations
-   - Labels: `table`
-
-4. **Expensive Aggregations** (`expensive_aggregation_total`)
-   - Tracks resource-intensive calculations
-   - Labels: `operation`, `records_processed`
+| Metric | Labels | Counts |
+|---|---|---|
+| `orders_created_total` | `product_type`, `region` | Orders created. Label values outside a fixed set are reported as `other`, so a client can't create new time series by sending arbitrary values. |
+| `database_writes_total` | `table`, `operation` | Write operations |
+| `database_rows_returned_total` | `table`, `query` | Rows read; `rate()` gives rows per second |
+| `database_full_scan_total` | `table` | Full table scans |
+| `expensive_aggregation_total` | `operation` | Revenue calculations over every order |
 
 ## Dashboard Panels
 
@@ -167,32 +161,35 @@ Two dashboards are provisioned:
 22. **Memory Usage**: RSS and VMS memory tracking
 23. **CPU Usage**: Process CPU percentage
 
-### Demo Custom Metrics (this example)
+### Demo Custom Metrics
 
 These panels visualize the custom metrics `OrderService` records via
 `InstrumentationProvider` — they only exist because this app emits them:
 
-1. **Database Write Operations**: Write load by table and operation
-2. **Query Result Sizes**: Rows returned per query (detect large queries)
-3. **Full Table Scans**: Expensive scan operations (should be LOW!)
-4. **Expensive Aggregations**: Resource-intensive operations
+1. **Orders Created per Minute**: By product type and region
+2. **Database Write Operations**: Write rate by table and operation
+3. **Rows Returned per Second**: Read volume by table and query
+4. **Full Table Scans**: Scan rate by table
+5. **Expensive Aggregations**: Aggregation rate by operation
 
 ## Configuration
 
-The example uses the following configuration in `application.yml`:
+The instrumentation and metrics settings in `application.yml`:
 
 ```yaml
 instrumentation:
-  enabled: true        # Enable instrumentation
-  track_memory: false  # Adds Python traced memory (tracemalloc); CPU/RSS/VMS are always on
+  enabled: true
+  track_memory: false
 
 metrics:
   enabled: true
   path: /metrics
-  # Allow access from:
-  # - Docker internal network range (172.16.0.0/12) - i.e. 172.16.0.0 to 172.31.255.255
-  # - Local network range (192.168.0.0/16)
-  allowed_ips: ["172.16.0.0/12", "192.168.0.0/16"]  # Empty list = allow all. For production, specify your network ranges.
+  # Addresses allowed to read the metrics endpoints. An empty list allows all.
+  # - 127.0.0.1: requests from your machine when running app.py directly
+  # - 172.16.0.0/12: Docker networks, which is where Prometheus scrapes from
+  # - 192.168.0.0/16: requests from your machine to the container on Docker
+  #   Desktop, which forwards them from 192.168.65.1
+  allowed_ips: ["127.0.0.1", "172.16.0.0/12", "192.168.0.0/16"]
 ```
 
 ## Metrics Endpoints
@@ -205,27 +202,68 @@ Example response:
 ```json
 {
   "enabled": true,
-  "timestamp": "2025-12-15T10:30:00.000000",
+  "timestamp": "2026-09-29T07:32:26.689899+00:00",
+  "scheduler": {
+    "tasks": [
+      {
+        "name": "OrderReconciliationService.reconcile_orders",
+        "executions": 1,
+        "failures": 0,
+        "average_duration_ms": 9.51,
+        "status": "idle"
+      }
+    ],
+    "total_tasks": 1,
+    "running_tasks": 0
+  },
   "instrumentation": {
     "system": {
-      "memory": {"rss_mb": 85.2, "vms_mb": 150.3},
-      "cpu": {"percent": 1.2}
+      "memory": {
+        "rss_bytes": 55386112,
+        "rss_mb": 52.82,
+        "vms_bytes": 181608448,
+        "vms_mb": 173.2
+      },
+      "cpu": {
+        "percent": 0.0
+      }
     },
     "http": {
-      "total_requests": 15,
-      "requests_by_method": {"GET": 10, "POST": 5},
-      "responses_by_status": {"200": 14, "404": 1},
-      "latency": {"avg_ms": 8.5, "total_seconds": 0.13}
+      "total_requests": 11,
+      "requests_by_method": {
+        "POST": 5,
+        "GET": 6
+      },
+      "responses_by_status": {
+        "201": 5,
+        "200": 5,
+        "404": 1
+      },
+      "latency": {
+        "avg_ms": 3.42,
+        "total_seconds": 0.04
+      }
     },
     "components": {
-      "UserService": {
-        "calls": 12,
-        "avg_duration_ms": 5.2,
+      "OrderRepository": {
+        "calls": 7,
+        "avg_duration_ms": 2.92,
         "methods": {
-          "get_user": {"calls": 10, "avg_duration_ms": 4.1},
-          "create_user": {"calls": 2, "avg_duration_ms": 10.7}
+          "find_all": {
+            "calls": 3,
+            "avg_duration_ms": 3.92
+          },
+          "find_by_user_id": {
+            "calls": 1,
+            "avg_duration_ms": 4.03
+          },
+          "save": {
+            "calls": 3,
+            "avg_duration_ms": 1.56
+          }
         }
-      }
+      },
+      ...
     }
   }
 }
@@ -239,11 +277,19 @@ Example response:
 ```
 # HELP http_requests_total Total HTTP requests
 # TYPE http_requests_total counter
-http_requests_total{method="GET",path="/api/users",status="200"} 10.0
-
-# HELP database_writes_total Database write operations
+http_requests_total{method="POST",path="/api/users",status="201"} 2.0
+http_requests_total{method="GET",path="/api/users",status="200"} 1.0
+http_requests_total{method="POST",path="/api/orders",status="201"} 3.0
+...
+# HELP orders_created_total Custom metric: orders_created_total
+# TYPE orders_created_total counter
+orders_created_total{product_type="digital",region="us-east"} 1.0
+orders_created_total{product_type="physical",region="eu-west"} 1.0
+orders_created_total{product_type="digital",region="other"} 1.0
+...
+# HELP database_writes_total Custom metric: database_writes_total
 # TYPE database_writes_total counter
-database_writes_total{table="orders",operation="insert"} 5.0
+database_writes_total{operation="insert",table="orders"} 3.0
 ```
 
 ## Code Organization
@@ -271,38 +317,66 @@ instrumentation_demo/
     │   ├── order_service.py
     │   └── order_reconciliation_service.py  # @Scheduled reconciliation task        
     ├── repositories/
-    │   ├── user_repository.py      # Data access, auto-instrumented
-    │   └── order_repository.py     # In-memory storage
+    │   ├── user_repository.py      # @CrudRepository for users
+    │   └── order_repository.py     # @CrudRepository for orders
     └── domain/
         ├── user.py                 # User entity
         └── order.py                # Order entity
 ```
 
-The dashboard itself is not checked in since it depends on your local path. On `docker compose up`, a one-shot
-`dashboard-init` service runs `mitsuki grafana-dashboard` to write the dashboard bundled with the framework into a shared volume, which Grafana provisions from `grafana/provisioning/dashboards/mitsuki.yml`. 
+The framework dashboard isn't copied into this example: it ships inside the
+`mitsuki` package. On `docker compose up`, a one-shot `dashboard-init` service
+runs `mitsuki grafana-dashboard` to write it into a shared volume, which Grafana
+provisions from `grafana/provisioning/dashboards/mitsuki.yml`. The demo
+dashboard is provisioned from `grafana/dashboards/`.
 
 ## Custom Metrics Example
 
-The `OrderService` shows how to track operational metrics:
+`OrderService` records a business metric and an operational metric when an
+order is created (`src/services/order_service.py`):
 
 ```python
-from mitsuki.core.instrumentation import InstrumentationProvider
+# Label values must come from a small, fixed set: every distinct value creates
+# a separate time series in Prometheus. Anything outside the set is reported
+# as "other".
+PRODUCT_TYPES = {"digital", "physical"}
+REGIONS = {"us-east", "us-west", "eu-west", "ap-south"}
+
+
+def _bounded(value: str, allowed: set) -> str:
+    return value if value in allowed else "other"
+
 
 @Service()
 class OrderService:
-    def __init__(self, order_repo: OrderRepository, instrumentation: InstrumentationProvider):
+    ...
+
+    def __init__(
+        self, order_repo: OrderRepository, instrumentation: InstrumentationProvider
+    ):
         self.order_repo = order_repo
         self.instrumentation = instrumentation
 
-    async def create_order(self, user_id: int, product_type: str, amount: float, region: str):
-        order = Order(user_id=user_id, product_type=product_type, amount=amount, region=region)
+    async def create_order(
+        self, user_id: int, product_type: str, amount: float, region: str = "us-east"
+    ) -> Order:
+        order = Order(
+            user_id=user_id, product_type=product_type, amount=amount, region=region
+        )
         saved_order = await self.order_repo.save(order)
 
-        # Track database write operation
+        self.instrumentation.record_metric(
+            metric_name="orders_created_total",
+            value=1,
+            labels={
+                "product_type": _bounded(product_type, PRODUCT_TYPES),
+                "region": _bounded(region, REGIONS),
+            },
+        )
         self.instrumentation.record_metric(
             metric_name="database_writes_total",
             value=1,
-            labels={"table": "orders", "operation": "insert"}
+            labels={"table": "orders", "operation": "insert"},
         )
 
         return saved_order
@@ -314,19 +388,21 @@ class OrderService:
 ┌─────────────────────────────────────────┐
 │         Mitsuki Application             │
 │  ┌───────────────────────────────────┐  │
-│  │  @Instrumented Components         │  │
-│  │  - UserService                    │  │
-│  │  - OrderService                   │  │
-│  │  - UserRepository                 │  │
-│  │  - OrderRepository                │  │
-│  │  - Controllers                    │  │
-│  └───────────────────────────────────┘  │
-│                 ↓                       │
-│  ┌───────────────────────────────────┐  │
 │  │  Instrumentation Middleware       │  │
-│  │  - HTTP request tracking          │  │
-│  │  - Component call tracking        │  │
-│  │  - System metrics collection      │  │
+│  │  - HTTP requests, by route        │  │
+│  ├───────────────────────────────────┤  │
+│  │  Instrumented Components          │  │
+│  │  - Controllers, services,         │  │
+│  │    repositories: calls, failures, │  │
+│  │    duration                       │  │
+│  │  - InstrumentationProvider:       │  │
+│  │    custom metrics                 │  │
+│  ├───────────────────────────────────┤  │
+│  │  Scheduler                        │  │
+│  │  - @Scheduled task executions     │  │
+│  ├───────────────────────────────────┤  │
+│  │  System Sampler (every 5s)        │  │
+│  │  - Process CPU and memory         │  │
 │  └───────────────────────────────────┘  │
 │                 ↓                       │
 │  ┌───────────────────────────────────┐  │
@@ -337,9 +413,9 @@ class OrderService:
 │  └───────────────────────────────────┘  │
 │                 ↓                       │
 │  ┌───────────────────────────────────┐  │
-│  │  /metrics Endpoint                │  │
-│  │  - Format selection               │  │
-│  │  - IP allowlisting                │  │
+│  │  /metrics (JSON)                  │  │
+│  │  /metrics/prometheus (text)       │  │
+│  │  - IP allowlist                   │  │
 │  └───────────────────────────────────┘  │
 └─────────────────────────────────────────┘
                  ↓

@@ -878,7 +878,7 @@
           "datasource": {
             "type": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum(increase(http_request_duration_seconds_bucket{path!~\"/metrics.*\"}[5m])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.95, sum(increase(http_request_duration_seconds_bucket{path!~\"/metrics.*\"}[5m])) by (le))",
           "refId": "B",
           "legendFormat": "p95"
         },
@@ -886,7 +886,7 @@
           "datasource": {
             "type": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, sum(increase(http_request_duration_seconds_bucket{path!~\"/metrics.*\"}[5m])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.99, sum(increase(http_request_duration_seconds_bucket{path!~\"/metrics.*\"}[5m])) by (le))",
           "refId": "C",
           "legendFormat": "p99"
         }

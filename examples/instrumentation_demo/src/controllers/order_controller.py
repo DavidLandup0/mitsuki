@@ -20,9 +20,8 @@ class OrderController:
     """
     REST API for order management.
 
-    Automatically instrumented - demonstrates:
-    - HTTP metrics collection
-    - Per-endpoint performance tracking
+    Every request is recorded in the HTTP metrics, labelled by method, route
+    template and status. Each handler is also recorded as a component call.
     """
 
     def __init__(self, order_service: OrderService):
@@ -33,13 +32,6 @@ class OrderController:
     async def create_order(
         self, body: CreateOrderRequest = RequestBody()
     ) -> ResponseEntity:
-        """
-        Create a new order.
-
-        This endpoint triggers custom metrics in OrderService:
-        - orders_created counter with labels
-        - revenue tracking with product type and region
-        """
         order = await self.order_service.create_order(
             user_id=body.user_id,
             product_type=body.product_type,
@@ -59,7 +51,6 @@ class OrderController:
 
     @GetMapping("")
     async def get_all_orders(self) -> ResponseEntity:
-        """Get all orders. Tracked by instrumentation."""
         orders = await self.order_service.get_all_orders()
         return ResponseEntity.ok(
             [
@@ -76,7 +67,6 @@ class OrderController:
 
     @GetMapping("/user/{user_id}")
     async def get_user_orders(self, user_id: int) -> ResponseEntity:
-        """Get orders for a specific user."""
         orders = await self.order_service.get_user_orders(user_id)
         return ResponseEntity.ok(
             [
@@ -93,13 +83,5 @@ class OrderController:
 
     @GetMapping("/revenue")
     async def get_total_revenue(self) -> ResponseEntity:
-        """
-        Calculate total revenue.
-
-        Demonstrates:
-        - Business logic instrumentation
-        - Custom metric recording
-        - Performance tracking of calculations
-        """
         total = await self.order_service.calculate_total_revenue()
         return ResponseEntity.ok({"total_revenue": total, "currency": "USD"})

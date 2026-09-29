@@ -1,18 +1,15 @@
-from mitsuki import Application, Value, Instrumented
+from mitsuki import Application, Instrumented, Value
 
 
-@Instrumented()  # Enable instrumentation for all components
+@Instrumented()
 @Application
 class App:
     """
     Application entry point.
 
-    The @Instrumented decorator on @Application automatically instruments:
-    - All @Service classes (UserService, OrderService)
-    - All @Repository classes (UserRepository, OrderRepository)
-    - All @RestController classes (UserController, OrderController)
-
-    No additional configuration needed!
+    @Instrumented() on the application instruments every @RestController,
+    @Service, @Repository and @CrudRepository. It takes effect when
+    instrumentation.enabled and metrics.enabled are set in application.yml.
     """
 
     port: int = Value("${server.port:8000}")

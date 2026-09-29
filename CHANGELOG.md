@@ -28,6 +28,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **`psutil` is an optional extra.** Install `mitsuki[metrics]` to enable instrumentation. Enabling it without `psutil` fails at startup with an error naming the extra.
 
 ### Fixes
+- **Fresh installs no longer fail to import.** SQLAlchemy 2.1 stopped installing `greenlet` by default, and Mitsuki's async database support needs it, so a new install resolving SQLAlchemy 2.1 failed on `import mitsuki` with an `ImportError`. Mitsuki now depends on `sqlalchemy[asyncio]`, which installs `greenlet` on every platform.
 - **Implemented `@CrudRepository` methods can call the repository's declared query methods.** Implemented methods ran against an internal proxy that only knew the built-in CRUD methods, so calling a `find_by_*` or `@Query` method from one raised `AttributeError`. They now run with the repository itself as `self`.
 - **`@CrudRepository` methods are resolved once, at decoration.** Each call to a declared method previously re-read and re-parsed its source to decide whether it was a query stub.
 - **Component scanning no longer skips modules containing undecorated classes.** The first class without Mitsuki metadata aborted the scan of its module, leaving any components whose names sort after it unregistered.
