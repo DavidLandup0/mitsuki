@@ -346,6 +346,24 @@ class TestCustomQueries:
         assert "bad_delete" in str(exc_info.value)
 
     @pytest.mark.asyncio
+    async def test_query_naming_another_entity_raises_error(self, setup_database):
+        """Should raise QueryException if an ORM query names another repository's entity."""
+
+        @CrudRepository(entity=User)
+        class CrossEntityRepository:
+            @Query("SELECT p FROM Post p")
+            async def find_posts(self): ...
+
+        adapter = setup_database
+        await adapter.create_table_if_not_exists(get_entity_metadata(User))
+
+        repo = CrossEntityRepository()
+        await repo.save(User(name="Test", email="test@example.com", age=25))
+
+        with pytest.raises(QueryException, match="'Post'.*'User'"):
+            await repo.find_posts()
+
+    @pytest.mark.asyncio
     async def test_positional_parameters(self, setup_database):
         """Should support positional parameters (?1, ?2, etc.)."""
         adapter = setup_database

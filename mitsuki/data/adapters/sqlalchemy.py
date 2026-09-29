@@ -38,7 +38,11 @@ from mitsuki.data.adapters.base import DatabaseAdapter
 from mitsuki.data.entity import get_entity_metadata
 from mitsuki.data.query import ComparisonOperator, LogicalOperator, Query
 from mitsuki.data.types import EntityMetadata, FieldMetadata
-from mitsuki.exceptions import DatabaseNotConnectedException, DataException
+from mitsuki.exceptions import (
+    DatabaseNotConnectedException,
+    DataException,
+    QueryException,
+)
 
 
 class GUID(TypeDecorator):
@@ -532,6 +536,13 @@ class SQLAlchemyAdapter(DatabaseAdapter):
                 else:
                     # No ORM pattern found, return as-is (probably native SQL)
                     return query_string
+
+        entity_class_name = entity_metadata.entity_class.__name__
+        if entity_name != entity_class_name:
+            raise QueryException(
+                f"Query references entity '{entity_name}' but this repository manages "
+                f"'{entity_class_name}'. Use native=True for cross-entity SQL."
+            )
 
         # First replace all alias.field references with just field
         # e.g., u.email -> email, u.age -> age
