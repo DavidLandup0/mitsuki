@@ -21,8 +21,10 @@
 </div>
 
 <div align="center">
-<a href="/docs">Documentation</a> |
-<a href="/benchmarks">Benchmarks</a> |
+<a href="https://davidlandup0.github.io/mitsuki/">Documentation</a> |
+<a href="https://github.com/DavidLandup0/mitsuki/tree/main/docs">Docs on GitHub</a> |
+<a href="https://github.com/DavidLandup0/mitsuki/tree/main/examples">Examples</a> |
+<a href="https://github.com/DavidLandup0/mitsuki/tree/main/benchmarks">Benchmarks</a> |
 <a href="https://deepwiki.com/DavidLandup0/mitsuki">DeepWiki</a>
 </div>
 <hr>
@@ -156,9 +158,9 @@ Here's a live example, of starting a Mitsuki project, which includes:
 
 ## Why Mitsuki?
 
-Mitsuki brings battle-tested web application patterns strength without introducing high complexity.
+Mitsuki gives Python applications a clear, opinionated structure without the complexity that usually comes with it.
 
-This is achieved through bringing dependency injection, declarative controllers, and auto-repositories to Python without the ceremony. It's highly inspired by Spring Boot in its early stages.
+This is achieved through bringing dependency injection, declarative controllers, and auto-repositories to Python without the ceremony. The programming model is inspired by Spring Boot.
 
 Conceptually, you can think of it as a structured dependency injection framework with syntactic sugar and tooling built on top of Starlette and Granian/Uvicorn.
 
@@ -174,9 +176,9 @@ For more, read the README.md in `/benchmarks`.
 
 Convention over configuration allows you to focus on business code, not glue. Mitsuki provides sensible default conventions, while allowing you to customize any level whenever you'd like.
 
-### Enterprise Patterns at Low Cognitive Cost
+### Structure at Low Cognitive Cost
 
-Services tend to evolve into certain time-tested patterns. Mitsuki supports them architecturally. Just write code - and it all fits into place.
+As services grow, they tend to settle into the same shape: controllers, services, repositories and configuration. Mitsuki gives that shape a home from day one, so new code has an obvious place to go.
 
 ### Server-Agnostic
 
@@ -208,7 +210,7 @@ We want to maintain the key components in a plug-and-play fashion, staying up to
 ## Core Design Principles
 
 - Declarative over imperative. Express intent, not implementation.
-- Enterprise patterns, no ceremony.
+- Opinionated structure, no ceremony.
 - Type hints are contracts.
 - Fast by design, minimal overhead.
 
@@ -441,6 +443,8 @@ Supports `application-profile.yml`, enabling you to centrally define configurati
 
 ## Documentation
 
+Browse the full documentation at [davidlandup0.github.io/mitsuki](https://davidlandup0.github.io/mitsuki/), or read the guides below on GitHub.
+
 | Guide | What's Inside |
 |-------|---------------|
 | [Overview](docs/01_overview.md) | Architecture, DI, how everything fits together |
@@ -459,6 +463,9 @@ Supports `application-profile.yml`, enabling you to centrally define configurati
 | [Scheduled Tasks](docs/14_scheduled_tasks.md) | Background jobs with @Scheduled |
 | [Metrics](docs/15_metrics.md) | Application monitoring and metrics |
 | [OpenAPI](docs/16_openapi.md) | Auto-generated API documentation with Swagger/ReDoc/Scalar |
+| [Database](docs/17_database.md) | Database connection, pooling and query logging |
+| [Database Migrations](docs/19_database_migrations.md) | Schema migrations with Alembic |
+| [Dockerizing Mitsuki](docs/18_dockerizing_mitsuki.md) | Containerizing Mitsuki applications |
 
 ## Basic Example
 
@@ -521,4 +528,4 @@ Found a bug? Have an idea? PRs welcome.
 4. Submit a PR
 
 
-Built with ❀ for developers who want enterprise patterns without enterprise pain.
+Built with ❀ for developers who want structure without ceremony.

@@ -1,7 +1,7 @@
 # Mitsuki Framework Overview
 
-Mitsuki brings Spring Boot's proven architectural patterns to Python, combining:
-- **Enterprise patterns** - Battle-tested architectural layering, dependency injection and inversion of control
+Mitsuki brings Spring Boot's programming model to Python, combining:
+- **Structured, opinionated architecture** - Layered components, dependency injection and inversion of control
 - **Python productivity** - Fast development with clean, expressive syntax
 - **Modern async** - Built on ASGI for high-performance, scalable applications
 

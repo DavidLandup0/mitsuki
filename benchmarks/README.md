@@ -92,6 +92,6 @@ We run a *simple* benchmark, not accounting for all possible combinations and ci
 
 Running this on different hardware will show different upper ceilings. You can also change the environment such as to favor any framework.
 
-The point is - you can indeed use Python at enterprise scale, without the enterprise pains.
+The point is - Python web applications can be in the same performance class as Java and JavaScript frameworks.
 
 This is where Mitsuki is designed to come in.

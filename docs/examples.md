@@ -23,3 +23,9 @@ The `openapi` example shows how to generate OpenAPI documentation for your appli
 The `scheduled` example demonstrates how to run tasks at a specified interval. This is useful for background jobs, such as sending emails or cleaning up old data.
 
 [View on GitHub](https://github.com/DavidLandup0/mitsuki/tree/main/examples/scheduled)
+
+## Instrumentation
+
+The `instrumentation_demo` example shows Mitsuki's instrumentation and metrics with a single `@Instrumented` decorator: system, HTTP, component, scheduler and custom metrics, exported in Prometheus format and visualized in pre-configured Grafana dashboards. Run it with Docker Compose to bring up the app, Prometheus and Grafana together.
+
+[View on GitHub](https://github.com/DavidLandup0/mitsuki/tree/main/examples/instrumentation_demo)

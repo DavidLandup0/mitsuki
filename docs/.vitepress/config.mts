@@ -5,7 +5,7 @@ export default defineConfig({
   base: '/mitsuki/',
   ignoreDeadLinks: 'localhostLinks',
   title: "Mitsuki",
-  description: "Python's flexibility and productivity, Spring Boot's battle-tested enterprise patterns.",
+  description: "Python's flexibility and productivity, Spring Boot's structured, opinionated patterns.",
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [
