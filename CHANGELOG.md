@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.1
+
+### Breaking Changes
+- **`UUIDv5` requires `name_field`.** Keys are derived from that field's value. They were derived from the class name, so every row got the same key.
+
+### Fixes
+- **Omitted `Column()` fields get their declared default.** They held an internal marker, and saving failed.
+- **ORM `@Query` strings must name the repository's own entity.** `SELECT p FROM Post p` in a `User` repository returned `users` rows; it now raises `QueryException`.
+- **Multipart bodies are capped while streaming.** `server.max_request_size` was checked only after the whole body was read.
+- **`exclude_fields` applies to dataclasses, objects and msgspec Structs.** Only dicts were filtered.
+
 ## 0.2.0
 
 ### Breaking Changes
