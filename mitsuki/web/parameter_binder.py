@@ -174,8 +174,33 @@ class BindingPlan:
         return {b.param: b.bind(request, form, body) for b in self.binders}
 
     async def _read_body(self, request: Request) -> bytes:
-        """Read the body, enforcing the size limit even without Content-Length."""
-        max_size = self.limits.max_body_size
+        """Read the JSON body, enforcing max_body_size."""
+        body = await self._read_capped(request, self.limits.max_body_size)
+
+        content_type = request.headers.get("content-type", "")
+        if body and content_type and not _is_json_content_type(content_type):
+            raise RequestValidationException(
+                f"Unsupported Content-Type: {content_type}. Expected application/json"
+            )
+
+        return body
+
+    async def _read_form(self, request: Request):
+        """Parse the multipart body, enforcing max_request_size."""
+        content_type = request.headers.get("content-type", "")
+        if not content_type.startswith("multipart/form-data"):
+            raise RequestValidationException("Expected multipart/form-data")
+
+        body = await self._read_capped(request, self.limits.max_request_size)
+        return await parse_multipart(
+            content_type,
+            body,
+            max_file_size=self.limits.max_file_size,
+            max_request_size=self.limits.max_request_size,
+        )
+
+    async def _read_capped(self, request: Request, max_size: int) -> bytes:
+        """Read the body, stopping once it exceeds max_size, even without Content-Length."""
         too_large = f"Request body too large (max {max_size} bytes)"
 
         content_length = request.headers.get("content-length")
@@ -192,27 +217,7 @@ class BindingPlan:
         # Populate Starlette's body cache so handlers and middleware that call
         # request.body() later do not hit an already-consumed stream.
         request._body = body
-
-        content_type = request.headers.get("content-type", "")
-        if body and content_type and not _is_json_content_type(content_type):
-            raise RequestValidationException(
-                f"Unsupported Content-Type: {content_type}. Expected application/json"
-            )
-
         return body
-
-    async def _read_form(self, request: Request):
-        """Parse the multipart body."""
-        content_type = request.headers.get("content-type", "")
-        if not content_type.startswith("multipart/form-data"):
-            raise RequestValidationException("Expected multipart/form-data")
-
-        return await parse_multipart(
-            content_type,
-            await request.body(),
-            max_file_size=self.limits.max_file_size,
-            max_request_size=self.limits.max_request_size,
-        )
 
 
 class ParameterBinder:

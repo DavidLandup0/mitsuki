@@ -11,9 +11,11 @@ from typing import Any, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
+from starlette.requests import Request
 from starlette.testclient import TestClient
 
 from mitsuki import (
+    FormFile,
     FormParam,
     GetMapping,
     PathVariable,
@@ -25,6 +27,10 @@ from mitsuki import (
 )
 from mitsuki.core.container import DIContainer, set_container
 from mitsuki.core.server import MitsukiASGIApp
+from mitsuki.exceptions import RequestValidationException
+from mitsuki.web.parameter_binder import ParameterBinder
+from mitsuki.web.params import extract_param_metadata
+from mitsuki.web.upload import UploadFile
 
 
 class MockContext:
@@ -591,3 +597,64 @@ class TestBodySizeLimits:
         )
 
         assert response.status_code == 400
+
+
+class TestMultipartSizeLimits:
+    """Multipart bodies must be capped while they are read, not after."""
+
+    def test_oversized_multipart_rejected(self):
+        @RestController("/api")
+        class C:
+            @PostMapping("/upload")
+            async def upload(self, file: UploadFile = FormFile()) -> dict:
+                return {"size": file.size}
+
+        client = build_client(C)
+
+        response = client.post(
+            "/api/upload",
+            files={"file": ("big.bin", b"x" * (2 * 1024 * 1024), "text/plain")},
+        )
+
+        assert response.status_code == 400
+        assert "too large" in response.json()["error"]
+
+    @pytest.mark.asyncio
+    async def test_multipart_stream_stops_at_limit(self):
+        """Without Content-Length, reading must stop once the limit is crossed."""
+
+        async def upload(file: UploadFile = FormFile()):
+            pass
+
+        chunk_size = 1024
+        max_request_size = 10 * chunk_size
+        plan = ParameterBinder(
+            max_body_size=max_request_size,
+            max_file_size=max_request_size,
+            max_request_size=max_request_size,
+        ).build_plan(extract_param_metadata(upload), None)
+
+        chunks_available = 1000
+        chunks_sent = 0
+
+        async def receive():
+            nonlocal chunks_sent
+            chunks_sent += 1
+            return {
+                "type": "http.request",
+                "body": b"x" * chunk_size,
+                "more_body": chunks_sent < chunks_available,
+            }
+
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/upload",
+            "query_string": b"",
+            "headers": [(b"content-type", b"multipart/form-data; boundary=b")],
+        }
+
+        with pytest.raises(RequestValidationException, match="too large"):
+            await plan.bind(Request(scope, receive))
+
+        assert chunks_sent <= max_request_size // chunk_size + 1
