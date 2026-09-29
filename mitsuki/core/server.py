@@ -17,6 +17,7 @@ from mitsuki.core.instrumentation import (
     build_route_map,
 )
 from mitsuki.core.logging import get_granian_log_config
+from mitsuki.core.metrics import MetricsAccessMiddleware, parse_allowed_ips
 from mitsuki.core.scheduler import get_scheduler
 from mitsuki.data.repository import get_database_adapter
 from mitsuki.exceptions import DataException
@@ -146,6 +147,22 @@ class MitsukiASGIApp:
                     allow_headers=["*"],
                 )
             )
+
+        # Metrics allowlist, checked before routing so a denied client can't
+        # tell the metrics endpoints from a path that doesn't exist. Entries
+        # are parsed here, at startup, so a malformed one fails immediately.
+        config = get_config()
+        if config.get_bool("metrics.enabled"):
+            allowed_networks = parse_allowed_ips(config.get("metrics.allowed_ips", []))
+            if allowed_networks:
+                metrics_path = config.get("metrics.path", "/metrics")
+                middleware.append(
+                    Middleware(
+                        MetricsAccessMiddleware,
+                        paths=[metrics_path, f"{metrics_path}/prometheus"],
+                        allowed_networks=allowed_networks,
+                    )
+                )
 
         return middleware
 

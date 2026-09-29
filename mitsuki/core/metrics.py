@@ -1,5 +1,5 @@
 import ipaddress
-from typing import List, Optional, Union
+from typing import Iterable, List, Optional, Union
 
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
@@ -10,7 +10,6 @@ from mitsuki.core.metrics_core import MetricsStorage
 from mitsuki.core.metrics_formatters import format_json, format_prometheus
 from mitsuki.web.controllers import RestController
 from mitsuki.web.mappings import GetMapping
-from mitsuki.web.response import ResponseEntity
 
 logger = get_logger()
 
@@ -56,6 +55,62 @@ def client_address(request: Request) -> Optional[IPAddress]:
     return address
 
 
+def is_allowed(request: Request, allowed_networks: List[IPNetwork]) -> bool:
+    """
+    Check the request's direct peer address against the allowlist.
+
+    An empty allowlist allows everyone. Otherwise a client whose address is
+    unknown or not an IP is denied.
+
+    NOTE: This sees the direct peer, so behind a reverse proxy or load
+        balancer every request carries the proxy's address.
+    TODO: Make it harder to accidentally expose the endpoint by allowlisting a
+        whole proxy CIDR. For now the documentation warns users to choose
+        allowlisted addresses deliberately.
+    """
+    if not allowed_networks:
+        return True
+
+    address = client_address(request)
+    if address is None:
+        return False
+
+    return any(address in network for network in allowed_networks)
+
+
+class MetricsAccessMiddleware:
+    """
+    Restricts the metrics endpoints to metrics.allowed_ips.
+
+    Runs before routing, so a denied client gets exactly the response an
+    unknown path gets, whatever the method. Checking inside the endpoint would
+    leak the route: the router answers a method it doesn't serve with 405, and
+    the endpoint's own 404 would differ from the router's.
+    """
+
+    def __init__(self, app, paths: Iterable[str], allowed_networks: List[IPNetwork]):
+        self.app = app
+        # Matched with and without a trailing slash, like the routes.
+        self.paths = {path.rstrip("/") for path in paths}
+        self.allowed_networks = allowed_networks
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["path"].rstrip("/") not in self.paths:
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
+        if is_allowed(request, self.allowed_networks):
+            await self.app(scope, receive, send)
+            return
+
+        client = request.client.host if request.client else "<unknown>"
+        logger.warning(f"Metrics access denied for IP: {client}")
+
+        # The router's response for a path it doesn't know.
+        await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
+
+
 def create_metrics_endpoint(config):
     """
     Create metrics endpoint based on configuration.
@@ -74,7 +129,6 @@ def create_metrics_endpoint(config):
         return None
 
     metrics_path = config.get("metrics.path", "/metrics")
-    allowed_networks = parse_allowed_ips(config.get("metrics.allowed_ips", []))
 
     # Scrapes are monitoring overhead, so the metrics endpoints never record
     # component metrics, even under application-wide instrumentation.
@@ -84,48 +138,16 @@ def create_metrics_endpoint(config):
         def __init__(self, metrics_storage: MetricsStorage):
             self._core_registry = metrics_storage
 
-        def _check_ip_allowed(self, request: Request) -> bool:
-            """
-            Check the request's direct peer address against the allowlist.
-
-            An empty allowlist allows everyone. Otherwise a client whose
-            address is unknown or not an IP is denied.
-
-            NOTE: This sees the direct peer, so behind a reverse proxy or load
-                balancer every request carries the proxy's address.
-            TODO: Make it harder to accidentally expose the endpoint by
-                allowlisting a whole proxy CIDR. For now the documentation
-                warns users to choose allowlisted addresses deliberately.
-            """
-            if not allowed_networks:
-                return True
-
-            address = client_address(request)
-            if address is None:
-                return False
-
-            return any(address in network for network in allowed_networks)
-
-        def _deny(self, request: Request) -> ResponseEntity:
-            """Log the denied client and answer as if the endpoint did not exist."""
-            client = request.client.host if request.client else "<unknown>"
-            logger.warning(f"Metrics access denied for IP: {client}")
-            return ResponseEntity.not_found({"error": "Not found"})
-
+        # metrics.allowed_ips is enforced by MetricsAccessMiddleware, before
+        # requests reach these endpoints.
         @GetMapping(metrics_path)
-        async def get_metrics(self, request: Request):
+        async def get_metrics(self):
             """Get all application metrics in Mitsuki format."""
-            if not self._check_ip_allowed(request):
-                return self._deny(request)
-
             return format_json(self._core_registry)
 
         @GetMapping(f"{metrics_path}/prometheus")
-        async def get_prometheus_metrics(self, request: Request):
+        async def get_prometheus_metrics(self):
             """Get all application metrics in Prometheus format."""
-            if not self._check_ip_allowed(request):
-                return self._deny(request)
-
             content = format_prometheus(self._core_registry)
             return PlainTextResponse(content, media_type="text/plain; version=0.0.4")
 

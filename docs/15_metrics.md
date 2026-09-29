@@ -22,7 +22,7 @@ Mitsuki provides built-in instrumentation for monitoring application performance
 - **System resources**: CPU usage, memory consumption
 - **Custom metrics**: Track application-specific operational data
 
-All metrics are exposed through unified endpoints in both human-readable and Prometheus-compatible formats.
+Every metric is exposed at `/metrics/prometheus` in the Prometheus text format. `/metrics` returns a human-readable JSON summary of the built-in HTTP, component, scheduler and system metrics; custom metrics appear only in the Prometheus output.
 
 ## Quick Start
 
@@ -411,6 +411,9 @@ The `record_metric` method accepts:
 
 All custom metrics are stored as counters (monotonically increasing values).
 
+Custom metrics are exposed only at `/metrics/prometheus`. The JSON summary at
+`/metrics` covers the built-in metrics and does not include them.
+
 Metric names must match `[a-zA-Z_:][a-zA-Z0-9_:]*` and label names
 `[a-zA-Z_][a-zA-Z0-9_]*` (label names starting with `__` are reserved). A name
 already used by a built-in gauge or histogram cannot be reused for a counter.
@@ -583,8 +586,11 @@ startup with an error naming it. Addresses are compared as addresses, so
 does not report, or reports as something other than an IP, is denied.
 
 When access is denied:
-1. Warning logged: `WARNING Metrics access denied for IP: 192.168.1.100`
-2. HTTP 404 returned (hides endpoint existence)
+1. A warning is logged: `Metrics access denied for IP: 192.168.1.100`
+2. The client gets exactly the response a path that doesn't exist gets: a
+   `404` with the body `Not Found`, for every HTTP method. The check runs
+   before routing, so a denied client can't tell that the metrics endpoints
+   exist.
 
 ### Environment Variables
 
