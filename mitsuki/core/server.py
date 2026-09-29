@@ -29,10 +29,6 @@ from mitsuki.web.route_builder import RouteBuilder
 def _active_instrumentation() -> Optional[InstrumentationRegistry]:
     """
     Return the instrumentation registry if instrumentation is running.
-
-    initialize_metrics enables the registry only when metrics are enabled too,
-    so the registry's state, not instrumentation.enabled alone, is the
-    deciding flag.
     """
     if not get_config().get_bool("instrumentation.enabled"):
         return None
@@ -125,7 +121,6 @@ class MitsukiASGIApp:
         # Instrumentation middleware (must be first to track all requests)
         registry = _active_instrumentation()
         if registry:
-            # Scrapes are monitoring overhead, not application traffic.
             metrics_path = get_config().get("metrics.path", "/metrics")
             middleware.append(
                 Middleware(
@@ -148,9 +143,7 @@ class MitsukiASGIApp:
                 )
             )
 
-        # Metrics allowlist, checked before routing so a denied client can't
-        # tell the metrics endpoints from a path that doesn't exist. Entries
-        # are parsed here, at startup, so a malformed one fails immediately.
+        # Metrics allowlist, checked before routing to avoid leaking existence of endpoint
         config = get_config()
         if config.get_bool("metrics.enabled"):
             allowed_networks = parse_allowed_ips(config.get("metrics.allowed_ips", []))

@@ -564,9 +564,9 @@ metrics:
 Restrict access to metrics endpoints by IP:
 
 ::: warning Reverse Proxies and Security
-The IP check is performed on the direct incoming request's IP address (`request.client.host`). If your application is running behind a reverse proxy, load balancer, or cloud gateway (like Nginx or an AWS ALB), this IP will be that of the proxy, not the original user.
+The check uses the client address the server reports (`request.client.host`). Behind a reverse proxy, load balancer or cloud gateway (like Nginx or an AWS ALB), Granian, the default server, reports the proxy as the client, so external requests look internal: allowlisting the proxy's address (e.g. `127.0.0.1`) exposes the endpoints to everyone the proxy serves. Uvicorn fills the client from `X-Forwarded-For` instead.
 
-You are responsible for ensuring your network configuration is secure. In a proxied setup, you should typically configure the proxy to handle access control or add your proxy's trusted IP addresses to the `allowed_ips` list.
+In a proxied setup, don't allowlist the proxy. Restrict the metrics paths at the proxy, or scrape the application on an address the proxy doesn't route to.
 :::
 
 ```yaml

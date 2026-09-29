@@ -57,13 +57,15 @@ def client_address(request: Request) -> Optional[IPAddress]:
 
 def is_allowed(request: Request, allowed_networks: List[IPNetwork]) -> bool:
     """
-    Check the request's direct peer address against the allowlist.
+    Check the client address the server reports against the allowlist.
 
     An empty allowlist allows everyone. Otherwise a client whose address is
     unknown or not an IP is denied.
 
-    NOTE: This sees the direct peer, so behind a reverse proxy or load
-        balancer every request carries the proxy's address.
+    NOTE: Behind a reverse proxy, Granian reports the proxy as the client, so
+        external requests look internal: allowlisting the proxy's address
+        (e.g. 127.0.0.1) exposes the endpoints to everyone it serves. Uvicorn
+        fills the client from X-Forwarded-For instead.
     TODO: Make it harder to accidentally expose the endpoint by allowlisting a
         whole proxy CIDR. For now the documentation warns users to choose
         allowlisted addresses deliberately.
@@ -81,16 +83,10 @@ def is_allowed(request: Request, allowed_networks: List[IPNetwork]) -> bool:
 class MetricsAccessMiddleware:
     """
     Restricts the metrics endpoints to metrics.allowed_ips.
-
-    Runs before routing, so a denied client gets exactly the response an
-    unknown path gets, whatever the method. Checking inside the endpoint would
-    leak the route: the router answers a method it doesn't serve with 405, and
-    the endpoint's own 404 would differ from the router's.
     """
 
     def __init__(self, app, paths: Iterable[str], allowed_networks: List[IPNetwork]):
         self.app = app
-        # Matched with and without a trailing slash, like the routes.
         self.paths = {path.rstrip("/") for path in paths}
         self.allowed_networks = allowed_networks
 
@@ -107,7 +103,6 @@ class MetricsAccessMiddleware:
         client = request.client.host if request.client else "<unknown>"
         logger.warning(f"Metrics access denied for IP: {client}")
 
-        # The router's response for a path it doesn't know.
         await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
 
 
@@ -120,8 +115,6 @@ def create_metrics_endpoint(config):
     - /metrics/prometheus - Prometheus format (text)
 
     Returns controller class if metrics are enabled, None otherwise.
-
-    Note: Future versions will support metrics.port to expose on a separate port.
     """
     metrics_enabled = config.get_bool("metrics.enabled")
 
@@ -130,24 +123,18 @@ def create_metrics_endpoint(config):
 
     metrics_path = config.get("metrics.path", "/metrics")
 
-    # Scrapes are monitoring overhead, so the metrics endpoints never record
-    # component metrics, even under application-wide instrumentation.
     @Instrumented(enabled=False)
     @RestController()
     class MetricsController:
         def __init__(self, metrics_storage: MetricsStorage):
             self._core_registry = metrics_storage
 
-        # metrics.allowed_ips is enforced by MetricsAccessMiddleware, before
-        # requests reach these endpoints.
         @GetMapping(metrics_path)
         async def get_metrics(self):
-            """Get all application metrics in Mitsuki format."""
             return format_json(self._core_registry)
 
         @GetMapping(f"{metrics_path}/prometheus")
         async def get_prometheus_metrics(self):
-            """Get all application metrics in Prometheus format."""
             content = format_prometheus(self._core_registry)
             return PlainTextResponse(content, media_type="text/plain; version=0.0.4")
 

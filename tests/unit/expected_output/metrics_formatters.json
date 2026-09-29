@@ -1,0 +1,91 @@
+{
+    "enabled": true,
+    "scheduler": {
+        "tasks": [
+            {
+                "name": "Audit.noop",
+                "executions": 1,
+                "failures": 0,
+                "average_duration_ms": 0.0,
+                "status": "idle"
+            },
+            {
+                "name": "Cache.flush",
+                "executions": 2,
+                "failures": 2,
+                "average_duration_ms": null,
+                "status": "idle"
+            },
+            {
+                "name": "Reports.nightly",
+                "executions": 4,
+                "failures": 1,
+                "average_duration_ms": 30.0,
+                "status": "running"
+            }
+        ],
+        "total_tasks": 3,
+        "running_tasks": 1
+    },
+    "instrumentation": {
+        "system": {
+            "memory": {
+                "rss_bytes": 52428800,
+                "rss_mb": 50.0,
+                "vms_bytes": 181608448,
+                "vms_mb": 173.2,
+                "traced_current_bytes": 1048576,
+                "traced_peak_bytes": 2097152
+            },
+            "cpu": {
+                "percent": 12.35
+            }
+        },
+        "http": {
+            "total_requests": 10,
+            "requests_by_method": {
+                "GET": 7,
+                "POST": 3
+            },
+            "responses_by_status": {
+                "200": 5,
+                "404": 2,
+                "201": 3
+            },
+            "latency": {
+                "avg_ms": 2452.0,
+                "total_seconds": 12.26
+            }
+        },
+        "components": {
+            "OrderRepository": {
+                "calls": 4,
+                "avg_duration_ms": 2.0,
+                "methods": {
+                    "find_all": {
+                        "calls": 1,
+                        "avg_duration_ms": null
+                    },
+                    "save": {
+                        "calls": 3,
+                        "avg_duration_ms": 2.0
+                    }
+                }
+            },
+            "UserService": {
+                "calls": 7,
+                "avg_duration_ms": 50.0,
+                "methods": {
+                    "create_user": {
+                        "calls": 2,
+                        "avg_duration_ms": 100.0
+                    },
+                    "get_user": {
+                        "calls": 5,
+                        "avg_duration_ms": 30.0
+                    }
+                }
+            }
+        }
+    }
+}

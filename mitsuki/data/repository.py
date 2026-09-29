@@ -627,10 +627,7 @@ def CrudRepository(entity: Type):
             def entity_metadata(self):
                 return self._get_proxy().entity_metadata
 
-        # Methods are built once here rather than resolved per call, so they
-        # are real class attributes: instrumentation can wrap them, and a stub
-        # is parsed once instead of on every call. Built-in methods take
-        # precedence over declared attributes of the same name.
+        # Methods are built once here
         reserved = set(_BASE_METHODS) | set(_PROXY_ATTRIBUTES)
         for name, declared in _declared_attributes(repo_class).items():
             if name not in reserved:
@@ -645,8 +642,9 @@ def CrudRepository(entity: Type):
         GeneratedRepository.__doc__ = repo_class.__doc__
         GeneratedRepository.__mitsuki_entity_type__ = entity
 
-        # @Instrumented applied beneath @CrudRepository marks the declared
-        # class; carry the choice over to the class that replaces it.
+        # Decorators apply bottom-up: @Instrumented written below
+        # @CrudRepository marks the user's class, which is replaced by the
+        # generated one here. Copy the mark so either order works.
         if _INSTRUMENTED_MARKER in vars(repo_class):
             setattr(
                 GeneratedRepository,

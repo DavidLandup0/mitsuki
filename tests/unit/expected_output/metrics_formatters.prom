@@ -1,0 +1,147 @@
+# HELP scheduler_task_executions_total Task runs
+# TYPE scheduler_task_executions_total counter
+scheduler_task_executions_total{status="success",task="Reports.nightly"} 3.0
+scheduler_task_executions_total{status="failure",task="Reports.nightly"} 1.0
+scheduler_task_executions_total{status="failure",task="Cache.flush"} 2.0
+scheduler_task_executions_total{status="success",task="Audit.noop"} 1.0
+# HELP http_requests_total HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="GET",path="/api/users",status="200"} 5.0
+http_requests_total{method="GET",path="/api/users/{user_id}",status="404"} 2.0
+http_requests_total{method="POST",path="/api/users",status="201"} 3.0
+# HELP component_calls_total Component calls
+# TYPE component_calls_total counter
+component_calls_total{component="UserService",method="get_user",status="success"} 4.0
+component_calls_total{component="UserService",method="get_user",status="failure"} 1.0
+component_calls_total{component="UserService",method="create_user",status="success"} 2.0
+component_calls_total{component="OrderRepository",method="save",status="success"} 3.0
+component_calls_total{component="OrderRepository",method="find_all",status="success"} 1.0
+# HELP orders_created_total Orders
+# TYPE orders_created_total counter
+orders_created_total{product_type="digital",region="us-\"east\""} 2.0
+# HELP scheduler_tasks_running Running tasks
+# TYPE scheduler_tasks_running gauge
+scheduler_tasks_running{task="Reports.nightly"} 1
+scheduler_tasks_running{task="Audit.noop"} 0
+# HELP system_memory_bytes Process memory
+# TYPE system_memory_bytes gauge
+system_memory_bytes{type="rss"} 52428800
+system_memory_bytes{type="vms"} 181608448
+# HELP system_cpu_percent Process CPU
+# TYPE system_cpu_percent gauge
+system_cpu_percent 12.345
+# HELP system_traced_memory_bytes Traced memory
+# TYPE system_traced_memory_bytes gauge
+system_traced_memory_bytes{type="current"} 1048576
+system_traced_memory_bytes{type="peak"} 2097152
+# HELP scheduler_task_duration_seconds Task duration
+# TYPE scheduler_task_duration_seconds histogram
+scheduler_task_duration_seconds_bucket{le="0.001",task="Reports.nightly"} 0
+scheduler_task_duration_seconds_bucket{le="0.005",task="Reports.nightly"} 0
+scheduler_task_duration_seconds_bucket{le="0.01",task="Reports.nightly"} 0
+scheduler_task_duration_seconds_bucket{le="0.025",task="Reports.nightly"} 1
+scheduler_task_duration_seconds_bucket{le="0.05",task="Reports.nightly"} 3
+scheduler_task_duration_seconds_bucket{le="0.1",task="Reports.nightly"} 3
+scheduler_task_duration_seconds_bucket{le="0.25",task="Reports.nightly"} 3
+scheduler_task_duration_seconds_bucket{le="0.5",task="Reports.nightly"} 3
+scheduler_task_duration_seconds_bucket{le="1.0",task="Reports.nightly"} 3
+scheduler_task_duration_seconds_bucket{le="2.5",task="Reports.nightly"} 3
+scheduler_task_duration_seconds_bucket{le="5.0",task="Reports.nightly"} 3
+scheduler_task_duration_seconds_bucket{le="10.0",task="Reports.nightly"} 3
+scheduler_task_duration_seconds_bucket{le="+Inf",task="Reports.nightly"} 3
+scheduler_task_duration_seconds_sum{task="Reports.nightly"} 0.09
+scheduler_task_duration_seconds_count{task="Reports.nightly"} 3
+scheduler_task_duration_seconds_bucket{le="0.001",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="0.005",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="0.01",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="0.025",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="0.05",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="0.1",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="0.25",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="0.5",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="1.0",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="2.5",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="5.0",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="10.0",task="Audit.noop"} 1
+scheduler_task_duration_seconds_bucket{le="+Inf",task="Audit.noop"} 1
+scheduler_task_duration_seconds_sum{task="Audit.noop"} 0.0
+scheduler_task_duration_seconds_count{task="Audit.noop"} 1
+# HELP http_request_duration_seconds HTTP latency
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{le="0.001",method="GET",path="/api/users"} 0
+http_request_duration_seconds_bucket{le="0.005",method="GET",path="/api/users"} 1
+http_request_duration_seconds_bucket{le="0.01",method="GET",path="/api/users"} 2
+http_request_duration_seconds_bucket{le="0.025",method="GET",path="/api/users"} 2
+http_request_duration_seconds_bucket{le="0.05",method="GET",path="/api/users"} 2
+http_request_duration_seconds_bucket{le="0.1",method="GET",path="/api/users"} 2
+http_request_duration_seconds_bucket{le="0.25",method="GET",path="/api/users"} 3
+http_request_duration_seconds_bucket{le="0.5",method="GET",path="/api/users"} 3
+http_request_duration_seconds_bucket{le="1.0",method="GET",path="/api/users"} 3
+http_request_duration_seconds_bucket{le="2.5",method="GET",path="/api/users"} 3
+http_request_duration_seconds_bucket{le="5.0",method="GET",path="/api/users"} 3
+http_request_duration_seconds_bucket{le="10.0",method="GET",path="/api/users"} 3
+http_request_duration_seconds_bucket{le="+Inf",method="GET",path="/api/users"} 4
+http_request_duration_seconds_sum{method="GET",path="/api/users"} 12.21
+http_request_duration_seconds_count{method="GET",path="/api/users"} 4
+http_request_duration_seconds_bucket{le="0.001",method="POST",path="/api/users"} 0
+http_request_duration_seconds_bucket{le="0.005",method="POST",path="/api/users"} 0
+http_request_duration_seconds_bucket{le="0.01",method="POST",path="/api/users"} 0
+http_request_duration_seconds_bucket{le="0.025",method="POST",path="/api/users"} 0
+http_request_duration_seconds_bucket{le="0.05",method="POST",path="/api/users"} 1
+http_request_duration_seconds_bucket{le="0.1",method="POST",path="/api/users"} 1
+http_request_duration_seconds_bucket{le="0.25",method="POST",path="/api/users"} 1
+http_request_duration_seconds_bucket{le="0.5",method="POST",path="/api/users"} 1
+http_request_duration_seconds_bucket{le="1.0",method="POST",path="/api/users"} 1
+http_request_duration_seconds_bucket{le="2.5",method="POST",path="/api/users"} 1
+http_request_duration_seconds_bucket{le="5.0",method="POST",path="/api/users"} 1
+http_request_duration_seconds_bucket{le="10.0",method="POST",path="/api/users"} 1
+http_request_duration_seconds_bucket{le="+Inf",method="POST",path="/api/users"} 1
+http_request_duration_seconds_sum{method="POST",path="/api/users"} 0.05
+http_request_duration_seconds_count{method="POST",path="/api/users"} 1
+# HELP component_duration_seconds Component time
+# TYPE component_duration_seconds histogram
+component_duration_seconds_bucket{component="UserService",le="0.001",method="get_user"} 0
+component_duration_seconds_bucket{component="UserService",le="0.005",method="get_user"} 0
+component_duration_seconds_bucket{component="UserService",le="0.01",method="get_user"} 1
+component_duration_seconds_bucket{component="UserService",le="0.025",method="get_user"} 2
+component_duration_seconds_bucket{component="UserService",le="0.05",method="get_user"} 5
+component_duration_seconds_bucket{component="UserService",le="0.1",method="get_user"} 5
+component_duration_seconds_bucket{component="UserService",le="0.25",method="get_user"} 5
+component_duration_seconds_bucket{component="UserService",le="0.5",method="get_user"} 5
+component_duration_seconds_bucket{component="UserService",le="1.0",method="get_user"} 5
+component_duration_seconds_bucket{component="UserService",le="2.5",method="get_user"} 5
+component_duration_seconds_bucket{component="UserService",le="5.0",method="get_user"} 5
+component_duration_seconds_bucket{component="UserService",le="10.0",method="get_user"} 5
+component_duration_seconds_bucket{component="UserService",le="+Inf",method="get_user"} 5
+component_duration_seconds_sum{component="UserService",method="get_user"} 0.15000000000000002
+component_duration_seconds_count{component="UserService",method="get_user"} 5
+component_duration_seconds_bucket{component="UserService",le="0.001",method="create_user"} 0
+component_duration_seconds_bucket{component="UserService",le="0.005",method="create_user"} 0
+component_duration_seconds_bucket{component="UserService",le="0.01",method="create_user"} 0
+component_duration_seconds_bucket{component="UserService",le="0.025",method="create_user"} 0
+component_duration_seconds_bucket{component="UserService",le="0.05",method="create_user"} 0
+component_duration_seconds_bucket{component="UserService",le="0.1",method="create_user"} 2
+component_duration_seconds_bucket{component="UserService",le="0.25",method="create_user"} 2
+component_duration_seconds_bucket{component="UserService",le="0.5",method="create_user"} 2
+component_duration_seconds_bucket{component="UserService",le="1.0",method="create_user"} 2
+component_duration_seconds_bucket{component="UserService",le="2.5",method="create_user"} 2
+component_duration_seconds_bucket{component="UserService",le="5.0",method="create_user"} 2
+component_duration_seconds_bucket{component="UserService",le="10.0",method="create_user"} 2
+component_duration_seconds_bucket{component="UserService",le="+Inf",method="create_user"} 2
+component_duration_seconds_sum{component="UserService",method="create_user"} 0.2
+component_duration_seconds_count{component="UserService",method="create_user"} 2
+component_duration_seconds_bucket{component="OrderRepository",le="0.001",method="save"} 1
+component_duration_seconds_bucket{component="OrderRepository",le="0.005",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="0.01",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="0.025",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="0.05",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="0.1",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="0.25",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="0.5",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="1.0",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="2.5",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="5.0",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="10.0",method="save"} 3
+component_duration_seconds_bucket{component="OrderRepository",le="+Inf",method="save"} 3
+component_duration_seconds_sum{component="OrderRepository",method="save"} 0.006
+component_duration_seconds_count{component="OrderRepository",method="save"} 3

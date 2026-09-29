@@ -1,14 +1,3 @@
-"""
-Core metrics types and registry for unified metrics system.
-
-Provides simple metric primitives that both scheduler and instrumentation use:
-- Counter: Monotonically increasing value
-- Gauge: Current value (can go up or down)
-- Histogram: Distribution of values with buckets
-
-All metrics support labels for multi-dimensional data.
-"""
-
 import re
 import threading
 from bisect import bisect_left
@@ -19,14 +8,11 @@ from typing import Dict, List, Optional, Tuple
 
 from mitsuki.core.decorators import Component
 
-# Prometheus exposition grammar. A name outside it makes the whole scrape fail,
-# not just the offending series.
 _METRIC_NAME = re.compile(r"[a-zA-Z_:][a-zA-Z0-9_:]*")
 _LABEL_NAME = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
 
 
 def validate_metric_name(name: str):
-    """Raise ValueError unless name is a valid Prometheus metric name."""
     if not _METRIC_NAME.fullmatch(name):
         raise ValueError(
             f"Invalid metric name {name!r}: must match {_METRIC_NAME.pattern}"
@@ -155,9 +141,6 @@ class Gauge:
 class Histogram:
     """
     Distribution of values with configurable buckets.
-
-    Use for: request duration, response size, task duration
-    Automatically tracks sum and count for average calculation.
     """
 
     # Default buckets in seconds: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s
@@ -198,8 +181,6 @@ class Histogram:
         The key must equal ``_labels_to_key(labels)`` for the same labels (see
         ``Counter.inc_key``).
         """
-        # First bucket whose upper bound is >= value (i.e. value <= bucket).
-        # Values above the largest bound land in no bucket, only sum/count.
         idx = bisect_left(self.buckets, value)
         with self._lock:
             counts = self._buckets_data.get(label_key)

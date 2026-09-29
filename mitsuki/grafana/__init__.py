@@ -13,9 +13,6 @@ def dashboard_json() -> str:
 def write_dashboard(destination: Path) -> Path:
     """
     Write the bundled Grafana dashboard to destination.
-
-    A directory destination writes dashboard.json inside it; any other path is
-    treated as the target file. Parent directories are created as needed.
     """
     destination = Path(destination)
 
