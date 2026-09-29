@@ -1,7 +1,7 @@
 from typing import List, Tuple, Type
 
 from mitsuki.core.container import get_container
-from mitsuki.core.decorators import Component
+from mitsuki.core.decorators import Component, _register_instrumentable
 from mitsuki.core.enums import Scope, StereotypeType
 
 
@@ -18,6 +18,8 @@ def RestController(path: str = ""):
         cls.__mitsuki_base_path__ = path
         cls = Component(name=cls.__name__, scope=Scope.SINGLETON)(cls)
         cls._stereotype_subtype = StereotypeType.CONTROLLER
+
+        _register_instrumentable(cls)
 
         return cls
 

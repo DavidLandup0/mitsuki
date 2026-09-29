@@ -1,0 +1,64 @@
+services:
+  mitsuki:
+    build:
+      context: ../..
+      dockerfile: examples/instrumentation_demo/Dockerfile
+    container_name: instrumentation-demo-app
+    ports:
+      - "8000:8000"
+    networks:
+      - monitoring
+
+  # Emits the Grafana dashboard bundled with Mitsuki into a shared volume,
+  # which Grafana provisions from. Runs once and exits.
+  dashboard-init:
+    build:
+      context: ../..
+      dockerfile: examples/instrumentation_demo/Dockerfile
+    container_name: instrumentation-demo-dashboard-init
+    command: ["mitsuki", "grafana-dashboard", "-o", "/dashboards"]
+    volumes:
+      - grafana-dashboards:/dashboards
+    networks:
+      - monitoring
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: instrumentation-demo-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: instrumentation-demo-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-dashboards:/var/lib/grafana/dashboards
+      - ./grafana/dashboards:/var/lib/grafana/demo-dashboards:ro
+      - grafana-storage:/var/lib/grafana
+    networks:
+      - monitoring
+    depends_on:
+      prometheus:
+        condition: service_started
+      dashboard-init:
+        condition: service_completed_successfully
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  grafana-storage:
+  grafana-dashboards:
+  prometheus-data:

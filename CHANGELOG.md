@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.0
+
+### Breaking Changes
+- **Scheduler metrics configuration moved from `scheduler.metrics.*` to `metrics.*`.** `scheduler.metrics.enabled` and `scheduler.metrics.path` are no longer read.
+- **The `/metrics` JSON response changed.** Scheduler statistics moved from the top level into a `scheduler` block, alongside a new `instrumentation` block.
+- **Scheduler metrics require `metrics.enabled`.** With metrics disabled, scheduled executions record nothing to the metrics registry. Previously, metrics were always recorded, but `metrics.enabled` controlled whether they're exposed or not.
+
+### Features
+- **Instrumentation.** `@Instrumented()` on the `@Application` class instruments every `@Service`, `@Repository`, `@CrudRepository` and `@RestController`; on a single component it instruments only that component, and `@Instrumented(enabled=False)` opts a component out. 
+- **System metrics.** Process CPU and memory are sampled while instrumentation runs. `instrumentation.track_memory` adds Python traced memory at the cost of `tracemalloc` overhead.
+- **Custom metrics.** Inject `InstrumentationProvider` and call `record_metric` to count application events.
+- **Prometheus endpoint.** Metrics are formatted for Prometheus and exposed at `/metrics/prometheus`, next to the human-readable `/metrics`.
+- **IP allowlist.** `metrics.allowed_ips` restricts both endpoints to listed addresses and CIDR ranges.
+- **Grafana dashboard.** `mitsuki grafana-dashboard` writes a ready-made dashboard for Mitsuki metrics.
+
+### Dependencies
+- **`psutil` is an optional extra.** Install `mitsuki[metrics]` to enable instrumentation. Enabling it without `psutil` fails at startup with an error naming the extra.
+
+### Fixes
+- **Implemented `@CrudRepository` methods can call the repository's declared query methods.** Implemented methods ran against an internal proxy that only had the built-in CRUD methods registered, so calling a `find_by_*` or `@Query` method from one raised `AttributeError`. They now run with the repository itself as `self`.
+- **`@CrudRepository` methods are resolved once, at decoration.**
+- **Component scanning no longer skips modules containing undecorated classes.** The first class without Mitsuki metadata aborted the scan of its module, leaving any components whose names sort after it unregistered.
+
 ## [0.1.5] - 2026-07-21
 
 ### Parameter Binding Bug Fixes (by virtue of adopting msgspec over custom coercion)

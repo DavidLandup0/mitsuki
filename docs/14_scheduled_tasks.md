@@ -22,8 +22,7 @@ Mitsuki provides built-in task scheduling through the `@Scheduled` decorator, in
 - Cron macros (`@hourly`, `@daily`, etc.)
 - Timezone support for cron expressions
 - Initial delay before first execution (`initial_delay`)
-- Task statistics and metrics
-- Optional `/metrics` REST endpoint
+- Task statistics, and metrics at `/metrics` and `/metrics/prometheus` when `metrics.enabled` is set
 - Async and sync method support
 - Automatic error handling and logging
 - Lifecycle integration (start/stop with application)
@@ -329,41 +328,6 @@ class CacheService:
         return []
 ```
 
-### Metrics Collection
-
-```python
-import psutil
-from mitsuki import Service, Scheduled
-
-@Service()
-class MetricsService:
-    def __init__(self):
-        self.metrics_history = []
-
-    @Scheduled(fixed_rate=60000)  # Every minute
-    async def collect_system_metrics(self):
-        """Collect CPU and memory metrics."""
-        metrics = {
-            'timestamp': datetime.now(),
-            'cpu_percent': psutil.cpu_percent(),
-            'memory_percent': psutil.virtual_memory().percent,
-            'disk_percent': psutil.disk_usage('/').percent
-        }
-
-        self.metrics_history.append(metrics)
-
-        # Keep last 60 minutes
-        if len(self.metrics_history) > 60:
-            self.metrics_history.pop(0)
-
-        # Alert if CPU > 90%
-        if metrics['cpu_percent'] > 90:
-            await self._send_alert(f"High CPU: {metrics['cpu_percent']}%")
-
-    async def _send_alert(self, message: str):
-        print(f"ALERT: {message}")
-```
-
 ### Synchronous Tasks
 
 You can also schedule synchronous methods:
@@ -503,18 +467,66 @@ class ScheduledDataService:
 
 ## Observability and Monitoring
 
+### Metrics and Instrumentation
+
+When the scheduler and metrics are enabled, Mitsuki automatically records metrics for all `@Scheduled` tasks. These metrics are exposed at `/metrics` and `/metrics/prometheus` endpoints.
+
+**Enable metrics:**
+
+```yaml
+# application.yml
+scheduler:
+  enabled: true
+
+metrics:
+  enabled: true
+  path: /metrics
+```
+
+With `metrics.enabled` off, executions are not recorded as metrics; the in-process statistics described under [Programmatic Access to Statistics](#programmatic-access-to-statistics) are kept either way. The `/metrics` response shape is documented in [Instrumentation & Metrics](./15_metrics.md#metrics-endpoints).
+
+Note: Scheduler metrics work independently of `instrumentation.enabled`. However, if you want HTTP request metrics and component metrics in addition to scheduler metrics, enable instrumentation as well:
+
+```yaml
+instrumentation:
+  enabled: true  # Optional - for HTTP and component metrics
+```
+
+**Metrics tracked automatically:**
+- `scheduler_task_executions_total` - Counter with labels `{task, status}`
+- `scheduler_task_duration_seconds` - Histogram with label `{task}`
+- `scheduler_tasks_running` - Gauge with label `{task}`
+
+**Example Prometheus queries:**
+
+```promql
+# Task execution rate
+rate(scheduler_task_executions_total{task="BackgroundService.cleanup"}[5m])
+
+# Task failure rate
+rate(scheduler_task_executions_total{status="failure"}[5m]) / rate(scheduler_task_executions_total[5m])
+
+# Average task duration
+rate(scheduler_task_duration_seconds_sum[5m]) / rate(scheduler_task_duration_seconds_count[5m])
+
+# P95 task duration, per task
+histogram_quantile(0.95, sum(rate(scheduler_task_duration_seconds_bucket[5m])) by (le, task))
+```
+
+For complete documentation on metrics, instrumentation, and Prometheus/Grafana integration, see **[Instrumentation & Metrics](./15_metrics.md)**.
+
 ### Programmatic Access to Statistics
 
 Get task statistics programmatically:
 
 ```python
 from mitsuki import Service
-from mitsuki.core.scheduler import get_scheduler
+from mitsuki.core.scheduler import TaskScheduler
 
 @Service()
 class MonitoringService:
-    def __init__(self):
-        self.scheduler = get_scheduler()
+    def __init__(self, scheduler: TaskScheduler):
+        self.scheduler = scheduler
 
     async def check_task_health(self):
         """Check if scheduled tasks are healthy."""
@@ -530,105 +542,9 @@ class MonitoringService:
         return stats
 ```
 
-### Metrics Endpoint
-
-Enable the `/metrics` REST endpoint to expose scheduler statistics:
-
-**Configuration** (`application.yml`):
-```yaml
-scheduler:
-  enabled: true
-  metrics:
-    enabled: true
-    path: /metrics  # Optional, defaults to /metrics
-```
-
-**Response Format:**
-```json
-{
-  "tasks": [
-    {
-      "name": "BackgroundTaskService.quick_task",
-      "type": "fixed_rate",
-      "interval": 2000,
-      "status": "running",
-      "executions": 42,
-      "failures": 0,
-      "last_execution": "2025-11-15T10:30:45",
-      "last_duration_ms": 125.5,
-      "average_duration_ms": 118.3
-    },
-    {
-      "name": "BackgroundTaskService.slow_task",
-      "type": "fixed_delay",
-      "interval": 3000,
-      "status": "running",
-      "executions": 28,
-      "failures": 1,
-      "last_execution": "2025-11-15T10:30:43",
-      "last_duration_ms": 342.1,
-      "average_duration_ms": 298.7
-    },
-    {
-      "name": "BackgroundTaskService.daily_report",
-      "type": "cron",
-      "interval": "0 0 2 * * *",
-      "status": "running",
-      "executions": 1,
-      "failures": 0,
-      "last_execution": "2025-11-15T02:00:00",
-      "last_duration_ms": 1523.8,
-      "average_duration_ms": 1523.8
-    }
-  ],
-  "total_tasks": 3,
-  "running_tasks": 3
-}
-```
-
-**Metric Fields:**
-- `name` - Task identifier (`ClassName.methodName`)
-- `type` - Schedule type (`fixed_rate`, `fixed_delay`, or `cron`)
-- `interval` - Schedule interval (milliseconds for rate/delay, expression for cron)
-- `status` - Current status (`pending`, `running`, `stopped`, `error`)
-- `executions` - Number of successful executions
-- `failures` - Number of failed executions
-- `last_execution` - Timestamp of last execution (ISO 8601)
-- `last_duration_ms` - Duration of last execution in milliseconds
-- `average_duration_ms` - Average execution duration
-
-### Example: Monitoring Dashboard
-
-```python
-from mitsuki import Application, GetMapping, RestController
-from mitsuki.core.scheduler import get_scheduler
-
-@RestController("/admin")
-class AdminController:
-    @GetMapping("/scheduler/health")
-    async def scheduler_health(self) -> dict:
-        """Custom health check endpoint."""
-        scheduler = get_scheduler()
-        stats = scheduler.get_task_statistics()
-
-        total_failures = sum(task["failures"] for task in stats["tasks"])
-        total_executions = sum(task["executions"] for task in stats["tasks"])
-
-        health_status = "healthy"
-        if total_failures > 0:
-            failure_rate = total_failures / (total_executions + total_failures)
-            if failure_rate > 0.1:  # More than 10% failure rate
-                health_status = "degraded"
-
-        return {
-            "status": health_status,
-            "total_tasks": stats["total_tasks"],
-            "running_tasks": stats["running_tasks"],
-            "total_executions": total_executions,
-            "total_failures": total_failures,
-            "tasks": stats["tasks"]
-        }
-```
+::: tip NOTE
+The statistics returned by `get_task_statistics()` are held in the scheduler's local memory. This is different from the metrics collected by the instrumentation system, which are stored in a central registry and exposed at the `/metrics` endpoints. This method is best for direct, in-process checks, while the `/metrics` endpoint is better for external monitoring.
+:::
 
 ### Logging
 

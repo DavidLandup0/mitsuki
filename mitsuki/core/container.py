@@ -200,8 +200,11 @@ def get_container() -> DIContainer:
 
 def populate_container_from_decorators():
     """
-    Populate the container from already-decorated classes.
+    Populate the container from decorated classes.
     Scans sys.modules for classes with decorator metadata and registers them.
+
+    Registration order is irrelevant: dependencies are resolved lazily on first
+    get(), by which point every component is registered.
     """
     container = get_container()
     logger = logging.getLogger(__name__)
@@ -216,37 +219,36 @@ def populate_container_from_decorators():
 
         try:
             classes_found = 0
-            for name, obj in inspect.getmembers(module, inspect.isclass):
+            for _, obj in inspect.getmembers(module, inspect.isclass):
                 classes_found += 1
 
-                # Log if this class has component metadata
-                if obj._stereotype == StereotypeType.COMPONENT:
-                    classes_with_metadata.append(f"{module_name}.{obj.__name__}")
-                    logger.debug(f"Found decorated class: {module_name}.{obj.__name__}")
+                # An undecorated class has no _stereotype. Checking the class
+                # dict keeps that from raising and aborting the whole module.
+                if "_stereotype" not in vars(obj):
+                    continue
 
-                # Check for component/service decorator
-                scope = obj.__mitsuki_scope__
-                component_name = obj.__mitsuki_name__
+                if obj._stereotype != StereotypeType.COMPONENT:
+                    continue
 
-                # Skip if already registered by name (not by class reference)
-                # In spawn mode, same class can have different identities
-                if container.has_by_name(component_name):
+                name = obj.__mitsuki_name__
+                classes_with_metadata.append(f"{module_name}.{obj.__name__}")
+
+                if container.has_by_name(name):
                     logger.debug(
-                        f"Skipping {obj.__name__} - already registered by name '{component_name}'"
+                        f"Skipping {obj.__name__} - already registered by name '{name}'"
                     )
                     continue
 
-                container.register(obj, name=component_name, scope=scope)
+                container.register(obj, name=name, scope=obj.__mitsuki_scope__)
                 registered_count += 1
                 logger.debug(
-                    f"Re-registered {obj.__name__} from {module_name} in worker container"
+                    f"Registered {obj.__name__} from {module_name} in worker container"
                 )
 
             if classes_found > 0:
                 modules_scanned += 1
 
         except Exception as e:
-            # Skip modules that can't be inspected
             logger.debug(f"Couldn't inspect module {module_name}: {e}")
 
     logger.info(

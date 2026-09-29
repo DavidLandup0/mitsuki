@@ -5,8 +5,10 @@ from mitsuki.config.properties import get_config, log_config_sources
 from mitsuki.core.container import get_container
 from mitsuki.core.decorators import Configuration
 from mitsuki.core.enums import ServerType
+from mitsuki.core.instrumentation import InstrumentationRegistry, apply_instrumentation
 from mitsuki.core.logging import configure_logging, get_logger
 from mitsuki.core.metrics import create_metrics_endpoint
+from mitsuki.core.metrics_core import MetricsStorage
 from mitsuki.core.providers import initialize_configuration_providers
 from mitsuki.core.scanner import scan_components
 from mitsuki.core.scheduler import get_scheduler
@@ -19,6 +21,8 @@ from mitsuki.core.server import (
 from mitsuki.data import initialize_database
 from mitsuki.openapi import register_openapi_endpoints
 from mitsuki.web.controllers import get_all_controllers
+
+logger = get_logger()
 
 
 class ApplicationContext:
@@ -65,17 +69,50 @@ class ApplicationContext:
 
     def _register_metrics_endpoint(self):
         """Register metrics endpoint if enabled in configuration."""
-
         config = get_config()
         metrics_controller = create_metrics_endpoint(config)
-
         if metrics_controller:
-            # Metrics controller is auto-registered via @RestController decorator
-            pass
+            metrics_path = config.get("metrics.path")
+            logger.info(
+                f"Metrics enabled at {metrics_path} and {metrics_path}/prometheus"
+            )
+
+    def initialize_metrics(self):
+        """
+        Enable metrics collection and register the metrics endpoints.
+
+        Must run before controllers are collected, since the metrics endpoints
+        are themselves registered by a @RestController.
+
+        metrics.enabled gates whether metrics are recorded and rendered at all.
+        instrumentation.enabled additionally instruments components and HTTP
+        requests, and is ignored with a warning unless metrics.enabled is set,
+        since nothing would expose what it records.
+        """
+        config = get_config()
+        metrics_enabled = config.get_bool("metrics.enabled")
+
+        if metrics_enabled:
+            self.container.get(MetricsStorage).enable()
+
+        self._register_metrics_endpoint()
+
+        if not config.get_bool("instrumentation.enabled"):
+            return
+
+        if not metrics_enabled:
+            logger.warning(
+                "instrumentation.enabled is set but metrics.enabled is not; "
+                "instrumentation stays off since nothing would expose its metrics"
+            )
+            return
+
+        registry = self.container.get(InstrumentationRegistry)
+        registry.enable(track_memory=config.get_bool("instrumentation.track_memory"))
+        apply_instrumentation(self.application_class, registry)
 
     def _scan_scheduled_tasks(self):
         """Scan all registered components for @Scheduled methods."""
-        logger = get_logger()
         config = get_config()
         scheduler_enabled = config.get_bool("scheduler.enabled")
 
@@ -120,23 +157,19 @@ class ApplicationContext:
 
     def start(self, host: str = "127.0.0.1", port: int = 8000):
         asyncio.run(initialize_database())
+
+        config = get_config()
+
+        self.initialize_metrics()
         self.controllers = get_all_controllers()
 
-        # Register metrics endpoint if enabled
-        self._register_metrics_endpoint()
-
         # Register OpenAPI documentation endpoints if enabled
-        config = get_config()
         register_openapi_endpoints(self, config)
 
         # Note: Scheduled tasks are scanned in the worker process (see server.py _lifespan)
         # This ensures tasks are registered in the correct process when using multi-process servers
-
         server = create_server(self)
         self._server = server
-
-        config = get_config()
-        logger = get_logger()
 
         # To avoid circular imports
         from mitsuki import __version__
@@ -213,11 +246,13 @@ def Application(
                 scan_components(cls, scan_packages=scan_packages)
                 initialize_configuration_providers()
                 await initialize_database()
-                context._register_metrics_endpoint()
+
+                config = get_config()
+
+                context.initialize_metrics()
                 context.controllers = get_all_controllers()
 
                 # Register OpenAPI documentation endpoints if enabled
-                config = get_config()
                 register_openapi_endpoints(context, config)
 
                 # Note: Scheduled tasks are scanned in server.py _lifespan() after container repopulation

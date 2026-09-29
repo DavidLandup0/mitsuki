@@ -28,7 +28,7 @@ classifiers = [
 dependencies = [
     "uvicorn>=0.24.0",
     "starlette>=0.32.0",
-    "sqlalchemy>=2.0.0",
+    "sqlalchemy[asyncio]>=2.0.0",
     "aiosqlite>=0.19.0",
     "pyyaml>=6.0",
     "click>=8.0.0",
@@ -38,11 +38,12 @@ dependencies = [
     "colorama>=0.4.6",
     "croniter>=2.0.0",
     "pytz>=2021.1",
-    "msgspec>=0.19.0"
+    "msgspec>=0.19.0",
 ]
 
 [project.optional-dependencies]
 postgresql = ["asyncpg>=0.29.0"]
+metrics = ["psutil>=5.9.0"]
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
@@ -52,6 +53,7 @@ dev = [
     "alembic>=1.12.0",
     "asyncpg>=0.29.0",
     "aiomysql>=0.2.0",
+    "psutil>=5.9.0",
 ]
 
 [project.urls]
@@ -64,15 +66,17 @@ Issues = "https://github.com/DavidLandup0/mitsuki/issues"
 mitsuki = "mitsuki.cli.bootstrap:main"
 
 [tool.setuptools]
-packages = ["mitsuki", "mitsuki.core", "mitsuki.web", "mitsuki.data", "mitsuki.data.adapters", "mitsuki.config", "mitsuki.cli", "mitsuki.openapi"]
+packages = ["mitsuki", "mitsuki.core", "mitsuki.web", "mitsuki.data", "mitsuki.data.adapters", "mitsuki.config", "mitsuki.cli", "mitsuki.openapi", "mitsuki.grafana"]
 
 [tool.setuptools.package-data]
 "mitsuki.cli" = ["templates/*.tpl"]
 "mitsuki.config" = ["defaults.yml"]
+"mitsuki.grafana" = ["*.json"]
 
 [dependency-groups]
 dev = [
     "ruff>=0.14.3",
+    "psutil>=5.9.0",
 ]
 
 [tool.ruff]

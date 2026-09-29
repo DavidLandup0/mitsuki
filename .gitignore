@@ -46,3 +46,6 @@ examples/blog_app/uploads
 # VitePress
 docs/.vitepress/cache
 docs/.vitepress/dist
+
+# Blog post drafts, published separately
+blogposts/

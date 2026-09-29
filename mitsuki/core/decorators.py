@@ -1,8 +1,19 @@
 from functools import wraps
-from typing import Callable, Optional, Type, Union
+from typing import Callable, List, Optional, Type, Union
 
 from mitsuki.core.container import get_container
 from mitsuki.core.enums import Scope, StereotypeType
+
+
+# Components eligible for instrumentation, collected as stereotype decorators
+# run at import time. Instrumentation is applied at startup by
+# mitsuki.core.instrumentation.apply_instrumentation.
+_instrumentable_components: List[Type] = []
+
+
+def _register_instrumentable(cls: Type):
+    """Record a component as a candidate for instrumentation."""
+    _instrumentable_components.append(cls)
 
 
 def Scheduled(
@@ -100,6 +111,8 @@ def Service(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SINGLET
         cls = Component(name=name, scope=scope)(cls)
         cls._stereotype_subtype = StereotypeType.SERVICE
 
+        _register_instrumentable(cls)
+
         return cls
 
     return decorator
@@ -119,6 +132,8 @@ def Repository(name: Optional[str] = None, scope: Union[str, Scope] = Scope.SING
         cls = Component(name=name, scope=scope)(cls)
         cls._stereotype_subtype = StereotypeType.REPOSITORY
 
+        _register_instrumentable(cls)
+
         return cls
 
     return decorator
@@ -129,7 +144,6 @@ def Configuration(cls: Type) -> Type:
     Configuration class decorator.
     Marks a class as a configuration source for providers.
     """
-    # Ugly, but we need to set the sterotype subtype before regitering for Configurations, for now.
     _attach_component_metadata(cls, name=None, scope=Scope.SINGLETON)
     cls._stereotype_subtype = StereotypeType.CONFIGURATION
     _register_component(cls, name=None, scope=Scope.SINGLETON)

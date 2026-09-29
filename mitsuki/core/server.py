@@ -1,7 +1,7 @@
 import inspect
 import logging
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Optional
 
 import uvicorn
 from granian import Granian
@@ -10,13 +10,31 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 from mitsuki.config.properties import get_config
+from mitsuki.core.container import get_container
+from mitsuki.core.instrumentation import (
+    InstrumentationMiddleware,
+    InstrumentationRegistry,
+    build_route_map,
+)
 from mitsuki.core.logging import get_granian_log_config
+from mitsuki.core.metrics import MetricsAccessMiddleware, parse_allowed_ips
 from mitsuki.core.scheduler import get_scheduler
 from mitsuki.data.repository import get_database_adapter
 from mitsuki.exceptions import DataException
 from mitsuki.web.parameter_binder import ParameterBinder
 from mitsuki.web.response_processor import ResponseProcessor
 from mitsuki.web.route_builder import RouteBuilder
+
+
+def _active_instrumentation() -> Optional[InstrumentationRegistry]:
+    """
+    Return the instrumentation registry if instrumentation is running.
+    """
+    if not get_config().get_bool("instrumentation.enabled"):
+        return None
+
+    registry = get_container().get(InstrumentationRegistry)
+    return registry if registry.enabled else None
 
 
 class MitsukiASGIApp:
@@ -55,7 +73,7 @@ class MitsukiASGIApp:
         routes = route_builder.build_routes()
 
         # Build middleware stack
-        middleware = self._build_middleware()
+        middleware = self._build_middleware(routes)
 
         # Create ASGI app with lifespan context manager
         self.app = Starlette(
@@ -68,22 +86,22 @@ class MitsukiASGIApp:
     async def _lifespan(self, app):
         """Lifespan context manager for startup/shutdown."""
 
-        # Note: Container is already populated when decorators run during module import.
-        # Thus, it's not being managed here - it's a pre-lifespan component.
-
         # Scan and register scheduled tasks
-        # These are registered as tasks, not components, hence
-        # not in the container at startup.
         self.context._scan_scheduled_tasks()
 
         scheduler = get_scheduler()
         await scheduler.start()
 
+        registry = _active_instrumentation()
+        if registry:
+            registry.start_background_collection()
+
         yield
 
         # Shutdown
-        # Stop scheduler
         await scheduler.stop()
+        if registry:
+            registry.stop_background_collection()
 
         # Disconnect database
         try:
@@ -96,9 +114,22 @@ class MitsukiASGIApp:
             # throws an exception.
             pass
 
-    def _build_middleware(self) -> List[Middleware]:
+    def _build_middleware(self, routes) -> List[Middleware]:
         """Build middleware stack."""
         middleware = []
+
+        # Instrumentation middleware (must be first to track all requests)
+        registry = _active_instrumentation()
+        if registry:
+            metrics_path = get_config().get("metrics.path", "/metrics")
+            middleware.append(
+                Middleware(
+                    InstrumentationMiddleware,
+                    registry=registry,
+                    routes=build_route_map(routes),
+                    excluded={metrics_path, f"{metrics_path}/prometheus"},
+                )
+            )
 
         # CORS middleware
         if self.cors_enabled:
@@ -111,6 +142,20 @@ class MitsukiASGIApp:
                     allow_headers=["*"],
                 )
             )
+
+        # Metrics allowlist, checked before routing to avoid leaking existence of endpoint
+        config = get_config()
+        if config.get_bool("metrics.enabled"):
+            allowed_networks = parse_allowed_ips(config.get("metrics.allowed_ips", []))
+            if allowed_networks:
+                metrics_path = config.get("metrics.path", "/metrics")
+                middleware.append(
+                    Middleware(
+                        MetricsAccessMiddleware,
+                        paths=[metrics_path, f"{metrics_path}/prometheus"],
+                        allowed_networks=allowed_networks,
+                    )
+                )
 
         return middleware
 

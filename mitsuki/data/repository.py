@@ -1,14 +1,26 @@
 import ast
+import functools
 import inspect
 import re
 import textwrap
 import uuid
 from dataclasses import asdict
 from datetime import datetime
-from typing import Any, List, Optional, Type, get_args, get_origin
+from types import FunctionType
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Type,
+    get_args,
+    get_origin,
+)
 
 from mitsuki.core.decorators import Repository as RepositoryDecorator
 from mitsuki.core.enums import Scope
+from mitsuki.core.instrumentation import _MARKER as _INSTRUMENTED_MARKER
 from mitsuki.core.logging import get_logger
 from mitsuki.core.utils import uuid7
 from mitsuki.data.entity import get_entity_metadata, is_entity
@@ -443,6 +455,120 @@ class CrudRepositoryProxy:
             return []
 
 
+# Built-in repository methods, implemented by CrudRepositoryProxy.
+_BASE_METHODS = (
+    "save",
+    "find_by_id",
+    "find_all",
+    "delete",
+    "delete_by_id",
+    "exists_by_id",
+    "count",
+    "get_connection",
+)
+
+# CrudRepositoryProxy attributes readable through a repository.
+_PROXY_ATTRIBUTES = ("adapter", "entity_type", "entity_metadata")
+
+
+def _is_stub(method: FunctionType) -> bool:
+    """
+    Whether a declared method is a stub: its body is only `pass` or `...`.
+
+    Stubs are implemented from their names by the query DSL. A method whose
+    source is unavailable is treated as implemented.
+    """
+    try:
+        tree = ast.parse(textwrap.dedent(inspect.getsource(method)))
+    except (OSError, TypeError, SyntaxError):
+        return False
+
+    func_def = tree.body[0]
+    if not isinstance(func_def, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return False
+    if len(func_def.body) != 1:
+        return False
+
+    stmt = func_def.body[0]
+    if isinstance(stmt, ast.Pass):
+        return True
+    return (
+        isinstance(stmt, ast.Expr)
+        and isinstance(stmt.value, ast.Constant)
+        and stmt.value.value is Ellipsis
+    )
+
+
+def _base_method(name: str) -> Callable:
+    """Build a repository method delegating to the proxy's built-in method."""
+    proxy_method = CrudRepositoryProxy.__dict__[name]
+
+    if inspect.iscoroutinefunction(proxy_method):
+
+        @functools.wraps(proxy_method)
+        async def async_method(self, *args, **kwargs):
+            return await proxy_method(self._get_proxy(), *args, **kwargs)
+
+        return async_method
+
+    @functools.wraps(proxy_method)
+    def method(self, *args, **kwargs):
+        return proxy_method(self._get_proxy(), *args, **kwargs)
+
+    return method
+
+
+def _custom_query_method(declared: FunctionType) -> Callable:
+    """Build a repository method executing a @Query declaration."""
+
+    @functools.wraps(declared)
+    async def method(self, *args, **kwargs):
+        return await self._get_proxy()._handle_custom_query(declared, args, kwargs)
+
+    return method
+
+
+def _query_dsl_method(declared: FunctionType) -> Callable:
+    """Build a repository method implemented from its name by the query DSL."""
+    name = declared.__name__
+
+    @functools.wraps(declared)
+    async def method(self, *args, **kwargs):
+        return await self._get_proxy()._handle_query_dsl_method(name, args)
+
+    return method
+
+
+def _implement(declared: Any) -> Any:
+    """
+    Turn an attribute declared on a repository class into its implementation.
+
+    @Query declarations and stubs are implemented by the proxy. Implemented
+    methods and any other attributes are kept as declared, so an implemented
+    method runs with the repository as self and can call every other
+    repository method.
+    """
+    if not isinstance(declared, FunctionType):
+        return declared
+    if declared.__dict__.get("__mitsuki_query__"):
+        return _custom_query_method(declared)
+    if _is_stub(declared):
+        return _query_dsl_method(declared)
+    return declared
+
+
+def _declared_attributes(repo_class: Type) -> Dict[str, Any]:
+    """Public attributes of a repository class and its bases, subclass first."""
+    declared = {}
+    for klass in repo_class.__mro__:
+        if klass is object:
+            continue
+        for name, attr in vars(klass).items():
+            if not name.startswith("_") and name not in declared:
+                declared[name] = attr
+    return declared
+
+
 def CrudRepository(entity: Type):
     """
     Decorator that auto-generates repository implementation.
@@ -470,10 +596,8 @@ def CrudRepository(entity: Type):
         )
 
     def decorator(repo_class: Type) -> Type:
-        # Get database adapter
         adapter = get_database_adapter
 
-        # Create a new class that wraps the proxy
         class GeneratedRepository:
             def __init__(self):
                 # Lazy-initialize adapter (may not be available at decoration time)
@@ -484,83 +608,49 @@ def CrudRepository(entity: Type):
                     self._proxy = CrudRepositoryProxy(entity, adapter())
                 return self._proxy
 
-            def __getattribute__(self, name):
-                # Handle special attributes
+            def __getattr__(self, name):
+                # Reached only when regular lookup fails.
+                message = f"'{repo_class.__name__}' object has no attribute '{name}'"
                 if name.startswith("_"):
-                    return object.__getattribute__(self, name)
+                    raise AttributeError(message)
+                raise QueryException(message)
 
-                proxy = self._get_proxy()
+            @property
+            def adapter(self):
+                return self._get_proxy().adapter
 
-                # Check if it's a base CRUD method
-                if hasattr(proxy, name):
-                    return getattr(proxy, name)
+            @property
+            def entity_type(self):
+                return self._get_proxy().entity_type
 
-                # Check if it's defined in the original repo class
-                if hasattr(repo_class, name):
-                    original_method = getattr(repo_class, name)
+            @property
+            def entity_metadata(self):
+                return self._get_proxy().entity_metadata
 
-                    # Check if it's a @Query decorated method
-                    if callable(original_method) and hasattr(
-                        original_method, "__mitsuki_query__"
-                    ):
-                        # Create wrapper that calls the proxy's custom query handler
-                        async def custom_query_wrapper(*args, **kwargs):
-                            return await proxy._handle_custom_query(
-                                original_method, args, kwargs
-                            )
+        # Methods are built once here
+        reserved = set(_BASE_METHODS) | set(_PROXY_ATTRIBUTES)
+        for name, declared in _declared_attributes(repo_class).items():
+            if name not in reserved:
+                setattr(GeneratedRepository, name, _implement(declared))
 
-                        return custom_query_wrapper
-
-                    # Check if it's a real implementation (not just a stub with ... or pass)
-                    if callable(original_method):
-                        source = inspect.getsource(original_method)
-                        # Remove leading indentation
-                        source = textwrap.dedent(source)
-
-                        # Parse the method to check if it's a stub
-                        # A stub is a method that only contains 'pass' or '...' (Ellipsis)
-                        is_stub = False
-                        try:
-                            tree = ast.parse(source)
-                            # Get the function definition
-                            func_def = tree.body[0]
-                            if isinstance(
-                                func_def, (ast.FunctionDef, ast.AsyncFunctionDef)
-                            ):
-                                # Check if body only contains Pass or Expr(Ellipsis)
-                                if len(func_def.body) == 1:
-                                    stmt = func_def.body[0]
-                                    if isinstance(stmt, ast.Pass):
-                                        is_stub = True
-                                    elif isinstance(stmt, ast.Expr) and isinstance(
-                                        stmt.value, ast.Constant
-                                    ):
-                                        # Check for ellipsis (...)
-                                        if stmt.value.value is Ellipsis:
-                                            is_stub = True
-                        except Exception:
-                            # If we can't parse it, assume it's not a stub
-                            pass
-
-                        if is_stub:
-                            # Query DSL method (has annotations but no implementation)
-                            async def query_dsl_wrapper(*args, **kwargs):
-                                return await proxy._handle_query_dsl_method(name, args)
-
-                            return query_dsl_wrapper
-                        else:
-                            # Real implementation - bind to proxy
-                            bound_method = original_method.__get__(proxy, type(proxy))
-                            return bound_method
-
-                raise QueryException(
-                    f"'{repo_class.__name__}' object has no attribute '{name}'"
-                )
+        for name in _BASE_METHODS:
+            setattr(GeneratedRepository, name, _base_method(name))
 
         GeneratedRepository.__name__ = repo_class.__name__
         GeneratedRepository.__qualname__ = repo_class.__qualname__
         GeneratedRepository.__module__ = repo_class.__module__
+        GeneratedRepository.__doc__ = repo_class.__doc__
         GeneratedRepository.__mitsuki_entity_type__ = entity
+
+        # Decorators apply bottom-up: @Instrumented written below
+        # @CrudRepository marks the user's class, which is replaced by the
+        # generated one here. Copy the mark so either order works.
+        if _INSTRUMENTED_MARKER in vars(repo_class):
+            setattr(
+                GeneratedRepository,
+                _INSTRUMENTED_MARKER,
+                vars(repo_class)[_INSTRUMENTED_MARKER],
+            )
 
         GeneratedRepository = RepositoryDecorator(
             name=repo_class.__name__, scope=Scope.SINGLETON
