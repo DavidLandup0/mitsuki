@@ -14,6 +14,7 @@ import pytest_asyncio
 
 from mitsuki.data import (
     UUID,
+    Column,
     CrudRepository,
     Entity,
     Field,
@@ -357,6 +358,34 @@ class TestQueryDSL:
 
         count = await repo.count_by_active(True)
         assert count == 2
+
+
+class TestColumnRepository:
+    """Tests for entities with Column() fields."""
+
+    @pytest.mark.asyncio
+    async def test_save_with_omitted_column_uses_default(self, setup_database):
+        """An omitted Column() field is saved with its declared default."""
+        adapter = setup_database
+
+        @Entity(table="column_members")
+        @dataclass
+        class Member:
+            id: int = Id()
+            email: str = Column(unique=True, default="")
+            status: str = Column(default="active")
+
+        await adapter.create_table_if_not_exists(get_entity_metadata(Member))
+
+        @CrudRepository(entity=Member)
+        class MemberRepository:
+            pass
+
+        repo = MemberRepository()
+        saved = await repo.save(Member(email="a@example.com"))
+
+        found = await repo.find_by_id(saved.id)
+        assert found.status == "active"
 
 
 class TestUUIDRepository:

@@ -271,6 +271,7 @@ class TestColumnConstraints:
 
         meta = get_entity_metadata(User)
         assert meta.fields["status"].default == "active"
+        assert User().status == "active"
 
     def test_custom_db_type(self):
         """Test custom database type"""

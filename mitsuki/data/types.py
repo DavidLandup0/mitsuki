@@ -191,7 +191,7 @@ def Column(
             email: str = Column(unique=True, nullable=False, max_length=100)
             username: str = Column(index=True, max_length=50)  # Indexed with max length
     """
-    return _ColumnMarker(
+    marker = _ColumnMarker(
         unique=unique,
         nullable=nullable,
         index=index,
@@ -199,6 +199,7 @@ def Column(
         default=default,
         db_type=db_type,
     )
+    return field(default=default, metadata={"mitsuki_column": marker})
 
 
 def Field(update_on_create: bool = False, update_on_save: bool = False) -> Any:
