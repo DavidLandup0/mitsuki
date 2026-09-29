@@ -29,6 +29,7 @@ class FieldMetadata:
     update_on_save: bool = False  # Update timestamp on modification
     uuid_version: Optional[int] = None  # UUID version if this is a UUID field
     uuid_namespace: Optional[Any] = None  # UUID namespace for v5
+    uuid_name_field: Optional[str] = None  # Field whose value is hashed for v5
 
 
 @dataclass
@@ -93,9 +94,12 @@ class _UUIDMarker:
     Usage: id: uuid.UUID = UUID() or id: uuid.UUID = UUIDv4()
     """
 
-    def __init__(self, version: int = 4, namespace: Any = None):
+    def __init__(
+        self, version: int = 4, namespace: Any = None, name_field: Optional[str] = None
+    ):
         self.version = version
         self.namespace = namespace
+        self.name_field = name_field
         self.auto_increment = False  # UUIDs are not auto-incremented
         self.primary_key = True
 
@@ -108,6 +112,9 @@ class _UUIDMarker:
         # v5 requires namespace
         if version == 5 and namespace is None:
             raise UUIDGenerationException("UUID v5 requires a namespace parameter")
+
+        if version == 5 and name_field is None:
+            raise UUIDGenerationException("UUID v5 requires a name_field parameter")
 
 
 class _ColumnMarker:
@@ -213,13 +220,16 @@ def Field(update_on_create: bool = False, update_on_save: bool = False) -> Any:
     )
 
 
-def UUID(version: int = 4, namespace: Any = None) -> Any:
+def UUID(
+    version: int = 4, namespace: Any = None, name_field: Optional[str] = None
+) -> Any:
     """
     Mark a field as a UUID primary key.
 
     Args:
         version: UUID version (1, 4, 5, or 7)
         namespace: Namespace for v5 UUIDs (required for v5)
+        name_field: Field whose value is hashed into the v5 UUID (required for v5)
 
     Example:
         import uuid
@@ -234,9 +244,12 @@ def UUID(version: int = 4, namespace: Any = None) -> Any:
 
         @Entity()
         class Resource:
-            id: uuid.UUID = UUID(version=5, namespace=uuid.NAMESPACE_DNS)
+            id: uuid.UUID = UUID(
+                version=5, namespace=uuid.NAMESPACE_DNS, name_field="domain"
+            )
+            domain: str = ""
     """
-    return _UUIDMarker(version=version, namespace=namespace)
+    return _UUIDMarker(version=version, namespace=namespace, name_field=name_field)
 
 
 def UUIDv1() -> Any:
@@ -264,21 +277,23 @@ def UUIDv4() -> Any:
     return _UUIDMarker(version=4)
 
 
-def UUIDv5(namespace: Any) -> Any:
+def UUIDv5(namespace: Any, name_field: str) -> Any:
     """
     Mark a field as a UUID v5 primary key (namespace + name hashing with SHA-1).
 
     Args:
         namespace: UUID namespace (e.g., uuid.NAMESPACE_DNS, uuid.NAMESPACE_URL)
+        name_field: Field whose value is hashed into the UUID
 
     Example:
         import uuid
 
         @Entity()
         class Resource:
-            id: uuid.UUID = UUIDv5(namespace=uuid.NAMESPACE_DNS)
+            id: uuid.UUID = UUIDv5(namespace=uuid.NAMESPACE_DNS, name_field="domain")
+            domain: str = ""
     """
-    return _UUIDMarker(version=5, namespace=namespace)
+    return _UUIDMarker(version=5, namespace=namespace, name_field=name_field)
 
 
 def UUIDv7() -> Any:

@@ -380,17 +380,19 @@ class TestUUIDFields:
         assert pk.uuid_version == 4
 
     def test_uuidv5_alias_with_namespace(self):
-        """Test UUIDv5() alias with namespace"""
+        """Test UUIDv5() alias with namespace and name_field"""
 
         @Entity()
         @dataclass
         class Resource:
-            id: uuid.UUID = UUIDv5(namespace=uuid.NAMESPACE_DNS)
+            id: uuid.UUID = UUIDv5(namespace=uuid.NAMESPACE_DNS, name_field="domain")
+            domain: str = ""
 
         meta = get_entity_metadata(Resource)
         pk = meta.get_primary_key()
         assert pk.uuid_version == 5
         assert pk.uuid_namespace == uuid.NAMESPACE_DNS
+        assert pk.uuid_name_field == "domain"
 
     def test_uuidv7_alias(self):
         """Test UUIDv7() alias"""
@@ -418,7 +420,12 @@ class TestUUIDFields:
     def test_uuid_v5_requires_namespace(self):
         """Test that UUIDv5 requires namespace"""
         with pytest.raises(UUIDGenerationException, match="namespace"):
-            UUID(version=5)
+            UUID(version=5, name_field="domain")
+
+    def test_uuid_v5_requires_name_field(self):
+        """Test that UUIDv5 requires name_field"""
+        with pytest.raises(UUIDGenerationException, match="name_field"):
+            UUID(version=5, namespace=uuid.NAMESPACE_DNS)
 
     def test_uuid_all_namespaces(self):
         """Test all standard UUID namespaces"""
@@ -434,7 +441,8 @@ class TestUUIDFields:
             @Entity(table=f"test_entity_{i}")
             @dataclass
             class TestEntity:
-                id: uuid.UUID = UUIDv5(namespace=ns)
+                id: uuid.UUID = UUIDv5(namespace=ns, name_field="name")
+                name: str = ""
 
             meta = get_entity_metadata(TestEntity)
             assert meta.get_primary_key().uuid_namespace == ns

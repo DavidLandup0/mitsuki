@@ -118,6 +118,7 @@ def Entity(table: Optional[str] = None):
                     # Store UUID version and namespace in field metadata
                     field_meta.uuid_version = default_value.version
                     field_meta.uuid_namespace = default_value.namespace
+                    field_meta.uuid_name_field = default_value.name_field
                     entity_meta.primary_key_field = field_name
 
                 # Check for Column marker

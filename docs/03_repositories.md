@@ -98,13 +98,14 @@ class Session:
 @Entity()
 @dataclass
 class Resource:
-    id: uuid.UUID = UUIDv5(namespace=uuid.NAMESPACE_DNS)  # Deterministic
+    id: uuid.UUID = UUIDv5(namespace=uuid.NAMESPACE_DNS, name_field="domain")  # Deterministic
+    domain: str = ""
 ```
 
 **Supported UUID versions:**
 - **v1**: Timestamp + MAC address (legacy, privacy concerns)
 - **v4**: Random UUIDs (most common, default)
-- **v5**: Namespace + name hashing with SHA-1 (deterministic)
+- **v5**: Namespace + name hashing with SHA-1 (deterministic, derived from the `name_field` value)
 - **v7**: Time-ordered UUIDs (best for database performance and pagination)
 
 **Features:**

@@ -128,7 +128,9 @@ class CrudRepositoryProxy:
 
         return self.entity_type(**data)
 
-    def _generate_uuid(self, version: int, namespace: Any = None) -> uuid.UUID:
+    def _generate_uuid(
+        self, version: int, namespace: Any = None, name: Any = None
+    ) -> uuid.UUID:
         """Generate UUID based on version"""
         if version == 1:
             return uuid.uuid1()
@@ -137,7 +139,9 @@ class CrudRepositoryProxy:
         elif version == 5:
             if namespace is None:
                 raise UUIDGenerationException("UUID v5 requires a namespace")
-            return uuid.uuid5(namespace, self.entity_type.__name__)
+            if name is None:
+                raise UUIDGenerationException("UUID v5 requires a name_field value")
+            return uuid.uuid5(namespace, str(name))
         elif version == 7:
             return uuid7()
         else:
@@ -170,7 +174,9 @@ class CrudRepositoryProxy:
             # Generate UUID if this is a UUID field
             if pk_field_meta.uuid_version is not None:
                 generated_uuid = self._generate_uuid(
-                    pk_field_meta.uuid_version, pk_field_meta.uuid_namespace
+                    pk_field_meta.uuid_version,
+                    pk_field_meta.uuid_namespace,
+                    entity_dict.get(pk_field_meta.uuid_name_field),
                 )
                 setattr(
                     entity, pk_field, generated_uuid

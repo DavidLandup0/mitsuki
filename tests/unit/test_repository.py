@@ -13,15 +13,18 @@ import pytest
 import pytest_asyncio
 
 from mitsuki.data import (
+    UUID,
     CrudRepository,
     Entity,
     Field,
     Id,
     SQLAlchemyAdapter,
+    UUIDv5,
     UUIDv7,
     get_entity_metadata,
     set_database_adapter,
 )
+from mitsuki.exceptions import UUIDGenerationException
 
 
 @pytest_asyncio.fixture
@@ -389,3 +392,77 @@ class TestUUIDRepository:
         assert found is not None
         assert found.name == "Gadget"
         assert found.id == saved.id
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("version", [1, 4, 7])
+    async def test_save_generates_distinct_uuids(self, setup_database, version):
+        """Each saved entity gets its own generated UUID."""
+        adapter = setup_database
+
+        @Entity(table=f"uuid_v{version}_items")
+        @dataclass
+        class Item:
+            id: uuid.UUID = UUID(version=version)
+            name: str = ""
+
+        await adapter.create_table_if_not_exists(get_entity_metadata(Item))
+
+        @CrudRepository(entity=Item)
+        class ItemRepository:
+            pass
+
+        repo = ItemRepository()
+        first = await repo.save(Item(name="a"))
+        second = await repo.save(Item(name="b"))
+
+        assert first.id.version == version
+        assert first.id != second.id
+        assert await repo.count() == 2
+
+    @pytest.mark.asyncio
+    async def test_save_uuidv5_derives_id_from_name_field(self, setup_database):
+        """UUIDv5 keys hash the name_field value, so distinct values get distinct keys."""
+        adapter = setup_database
+
+        @Entity(table="uuid_v5_accounts")
+        @dataclass
+        class Account:
+            id: uuid.UUID = UUIDv5(namespace=uuid.NAMESPACE_DNS, name_field="email")
+            email: str = ""
+
+        await adapter.create_table_if_not_exists(get_entity_metadata(Account))
+
+        @CrudRepository(entity=Account)
+        class AccountRepository:
+            pass
+
+        repo = AccountRepository()
+        alice = await repo.save(Account(email="alice@example.com"))
+        bob = await repo.save(Account(email="bob@example.com"))
+
+        assert alice.id == uuid.uuid5(uuid.NAMESPACE_DNS, "alice@example.com")
+        assert bob.id == uuid.uuid5(uuid.NAMESPACE_DNS, "bob@example.com")
+        assert await repo.count() == 2
+
+        found = await repo.find_by_id(alice.id)
+        assert found.email == "alice@example.com"
+
+    @pytest.mark.asyncio
+    async def test_save_uuidv5_without_name_value_raises(self, setup_database):
+        """UUIDv5 cannot derive a key when the name_field value is None."""
+        adapter = setup_database
+
+        @Entity(table="uuid_v5_nameless")
+        @dataclass
+        class Nameless:
+            id: uuid.UUID = UUIDv5(namespace=uuid.NAMESPACE_DNS, name_field="email")
+            email: str = None
+
+        await adapter.create_table_if_not_exists(get_entity_metadata(Nameless))
+
+        @CrudRepository(entity=Nameless)
+        class NamelessRepository:
+            pass
+
+        with pytest.raises(UUIDGenerationException, match="name_field"):
+            await NamelessRepository().save(Nameless())
