@@ -377,6 +377,41 @@ class TestCustomQueries:
         assert await repo.count() == 1
 
     @pytest.mark.asyncio
+    async def test_keyword_in_string_literal_is_read_only(self, setup_database):
+        """Should treat a modifying keyword inside a string literal as data."""
+
+        @CrudRepository(entity=User)
+        class LiteralRepository:
+            @Query("SELECT u FROM User u WHERE u.name = 'please DELETE this'")
+            async def find_flagged(self): ...
+
+        adapter = setup_database
+        await adapter.create_table_if_not_exists(get_entity_metadata(User))
+
+        repo = LiteralRepository()
+        await repo.save(User(name="please DELETE this", email="a@example.com"))
+
+        results = await repo.find_flagged()
+
+        assert [user.name for user in results] == ["please DELETE this"]
+
+    @pytest.mark.asyncio
+    async def test_modifying_decorator_on_read_query_raises_error(self, setup_database):
+        """Should raise QueryException if @Modifying marks a read query."""
+
+        @CrudRepository(entity=User)
+        class MismarkedRepository:
+            @Modifying
+            @Query("SELECT u FROM User u")
+            async def find_everyone(self): ...
+
+        adapter = setup_database
+        await adapter.create_table_if_not_exists(get_entity_metadata(User))
+
+        with pytest.raises(QueryException, match="does not modify"):
+            await MismarkedRepository().find_everyone()
+
+    @pytest.mark.asyncio
     async def test_unparseable_orm_query_raises_error(self, setup_database):
         """Should raise QueryException for an ORM query it cannot rewrite."""
 

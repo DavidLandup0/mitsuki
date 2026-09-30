@@ -347,8 +347,10 @@ class CrudRepositoryProxy:
         Returns:
             True if query modifies data, False otherwise
         """
-        operation_pattern = r"\b(UPDATE|DELETE|INSERT)\b"
-        match = re.search(operation_pattern, query_string, re.IGNORECASE)
+        code = re.sub(
+            r"'(?:[^']|'')*'|--[^\n]*|/\*.*?\*/", "", query_string, flags=re.S
+        )
+        match = re.search(r"\b(UPDATE|DELETE|INSERT)\b", code, re.IGNORECASE)
         return match is not None
 
     async def _handle_custom_query(self, method: Any, args: tuple, kwargs: dict) -> Any:
@@ -368,6 +370,10 @@ class CrudRepositoryProxy:
             raise QueryException(
                 f"Query contains modifying operation (UPDATE/DELETE/INSERT) but is missing @Modifying decorator. "
                 f"Add @Modifying decorator to method '{method.__name__}'"
+            )
+        if is_modifying and not self._is_modifying_query(query_string):
+            raise QueryException(
+                f"@Modifying on '{method.__name__}' but its query does not modify data"
             )
 
         # Get method signature to map parameters
