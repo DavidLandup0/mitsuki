@@ -100,7 +100,7 @@ def Entity(table: Optional[str] = None):
             )
 
             # Check if field has special markers
-            default_value = dc_field.metadata.get("mitsuki_column", dc_field.default)
+            default_value = dc_field.metadata.get("mitsuki", dc_field.default)
             if default_value is not None and not isinstance(default_value, type):
                 # Check for Id marker
                 if isinstance(default_value, _IdMarker):

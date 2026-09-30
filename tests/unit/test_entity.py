@@ -465,6 +465,7 @@ class TestAutoTimestampFields:
         field = meta.fields["created_at"]
         assert field.update_on_create is True
         assert field.update_on_save is False
+        assert Post().created_at is None
 
     def test_update_on_save(self):
         """Test update_on_save for update timestamp"""

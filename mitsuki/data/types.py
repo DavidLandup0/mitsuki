@@ -199,7 +199,7 @@ def Column(
         default=default,
         db_type=db_type,
     )
-    return field(default=default, metadata={"mitsuki_column": marker})
+    return field(default=default, metadata={"mitsuki": marker})
 
 
 def Field(update_on_create: bool = False, update_on_save: bool = False) -> Any:
@@ -216,9 +216,10 @@ def Field(update_on_create: bool = False, update_on_save: bool = False) -> Any:
             created_at: datetime = Field(update_on_create=True)
             updated_at: datetime = Field(update_on_save=True)
     """
-    return _AutoTimestampMarker(
+    marker = _AutoTimestampMarker(
         update_on_create=update_on_create, update_on_save=update_on_save
     )
+    return field(default=None, metadata={"mitsuki": marker})
 
 
 def UUID(
