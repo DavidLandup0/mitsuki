@@ -7,13 +7,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## 0.2.1
 
 ### Breaking Changes
-- **`UUIDv5` requires `name_field`.** Keys are derived from that field's value. They were derived from the class name, so every row got the same key.
+- **`UUIDv5` requires `name_field`.** Keys are derived from that field's value. They used to be derived from the class name, which is static, causing rows to share the primary key. Other `UUIDvN` variants are not affected.
+- **Non-native `@Query` strings the ORM parser cannot rewrite raise `QueryException`.** They ran as raw SQL, outside the repository's entity. Use `native=True` for raw SQL.
+- **`Column()` defaults follow dataclass rules.** Mutable defaults such as `Column(default=[])` raise `ValueError`.
 
 ### Fixes
-- **Omitted `Column()` fields get their declared default.** They held an internal marker, and saving failed.
-- **ORM `@Query` strings must name the repository's own entity.** `SELECT p FROM Post p` in a `User` repository returned `users` rows; it now raises `QueryException`.
+- **Omitted `Column()` fields get their declared default.**
+- **ORM `@Query` strings name the repository's own entity.** `SELECT p FROM Post p` in a `User` repository returned `users` rows; it now raises `QueryException`.
 - **Multipart bodies are capped while streaming.** `server.max_request_size` was checked only after the whole body was read.
 - **`exclude_fields` applies to dataclasses, objects and msgspec Structs.** Only dicts were filtered.
+- **Path variables bind from the URL whatever their type.** A path variable annotated as `uuid.UUID`, `date` or another non-primitive type was read from the request body.
+- **`@Modifying` is required wherever a modifying statement appears.** A comment, CTE or earlier statement before the `DELETE`, `UPDATE` or `INSERT` bypassed the check.
+- **Omitted `Field()` timestamps default to `None`.**
+- **A non-numeric `Content-Length` no longer echoes a Python error.**
 
 ## 0.2.0
 
