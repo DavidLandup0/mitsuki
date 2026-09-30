@@ -10,6 +10,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **`UUIDv5` requires `name_field`.** Keys are derived from that field's value. They used to be derived from the class name, which is static, causing rows to share the primary key. Other `UUIDvN` variants are not affected.
 - **Non-native `@Query` strings the ORM parser cannot rewrite raise `QueryException`.** They ran as raw SQL, outside the repository's entity. Use `native=True` for raw SQL.
 - **`Column()` defaults follow dataclass rules.** Mutable defaults such as `Column(default=[])` raise `ValueError`.
+- **`@Modifying` on a query that does not modify data raises `QueryException`.** It returned `-1`.
 
 ### Fixes
 - **Omitted `Column()` fields get their declared default.**
