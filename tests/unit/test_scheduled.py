@@ -945,3 +945,83 @@ class TestTaskScheduler:
 
         for field in required_fields:
             assert field in task, f"Missing field: {field}"
+
+
+class Ticker:
+    """Plain scheduled target recording when it ran."""
+
+    def __init__(self, fail_every: int = 0):
+        self.fail_every = fail_every
+        self.run_times = []
+
+    async def tick(self):
+        self.run_times.append(asyncio.get_running_loop().time())
+        if self.fail_every and len(self.run_times) % self.fail_every == 0:
+            raise ValueError("tick failed")
+
+
+class TestFixedDelayLoop:
+    """Tests for the fixed_delay task loop."""
+
+    @pytest.mark.asyncio
+    async def test_initial_delay_precedes_first_run(self):
+        scheduler = TaskScheduler(MetricsStorage())
+        ticker = Ticker()
+        scheduler.register_scheduled_method(
+            ticker, ticker.tick, {"fixed_delay": 50, "initial_delay": 150}
+        )
+
+        started = asyncio.get_running_loop().time()
+        await scheduler.start()
+        await asyncio.sleep(0.1)
+        runs_during_initial_delay = len(ticker.run_times)
+        await asyncio.sleep(0.15)
+        await scheduler.stop()
+
+        assert runs_during_initial_delay == 0
+        assert ticker.run_times
+        assert ticker.run_times[0] - started >= 0.14
+
+    @pytest.mark.asyncio
+    async def test_failures_are_recorded_and_the_loop_continues(self):
+        storage = MetricsStorage()
+        storage.enable()
+        scheduler = TaskScheduler(storage)
+        ticker = Ticker(fail_every=2)
+        scheduler.register_scheduled_method(
+            ticker, ticker.tick, {"fixed_delay": 20, "initial_delay": 0}
+        )
+
+        await scheduler.start()
+        await asyncio.sleep(0.15)
+        await scheduler.stop()
+
+        [task] = scheduler.get_task_statistics()["tasks"]
+        failures = storage.counter("scheduler_task_executions_total").get(
+            {"task": "Ticker.tick", "status": "failure"}
+        )
+        assert len(ticker.run_times) >= 4
+        assert task["failures"] == len(ticker.run_times) // 2
+        assert task["executions"] == len(ticker.run_times) - task["failures"]
+        assert failures == task["failures"]
+
+
+class TestCronLoop:
+    """Tests for the cron task loop."""
+
+    @pytest.mark.asyncio
+    async def test_failure_is_recorded_and_the_loop_continues(self):
+        scheduler = TaskScheduler(MetricsStorage())
+        ticker = Ticker(fail_every=1)
+        scheduler.register_scheduled_method(
+            ticker, ticker.tick, {"cron": "* * * * * *", "initial_delay": 0}
+        )
+
+        await scheduler.start()
+        await asyncio.sleep(2.5)
+        await scheduler.stop()
+
+        [task] = scheduler.get_task_statistics()["tasks"]
+        assert task["failures"] >= 1
+        assert task["failures"] == len(ticker.run_times)
+        assert task["executions"] == 0

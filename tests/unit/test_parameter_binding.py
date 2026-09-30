@@ -24,13 +24,15 @@ from mitsuki import (
     QueryParam,
     RequestBody,
     RequestHeader,
+    RequestParam,
     RestController,
 )
 from mitsuki.core.container import DIContainer, set_container
+from mitsuki.core.enums import ParameterKind
 from mitsuki.core.server import MitsukiASGIApp
 from mitsuki.exceptions import RequestValidationException
 from mitsuki.web.parameter_binder import ParameterBinder
-from mitsuki.web.params import extract_param_metadata
+from mitsuki.web.params import ParamMetadata, extract_param_metadata
 from mitsuki.web.upload import UploadFile
 
 
@@ -734,3 +736,126 @@ class TestContentLengthHeader:
         }
 
         assert await plan.bind(Request(scope, receive)) == {"payload": {"a": 1}}
+
+
+class TestParameterKinds:
+    """extract_param_metadata assigns a ParameterKind to every handler parameter."""
+
+    def test_each_parameter_source_maps_to_its_kind(self):
+        async def handler(
+            request: Request,
+            person: Person,
+            plain: int,
+            tags: List[int],
+            *,
+            path_value: int = PathVariable(),
+            query_value: str = QueryParam(),
+            request_param_value: str = RequestParam(),
+            header_value: str = RequestHeader(),
+            body_value: Person = RequestBody(),
+            file_value: UploadFile = FormFile(),
+            form_value: str = FormParam(),
+            defaulted: int = 5,
+        ):
+            pass
+
+        kinds = {
+            name: meta.kind for name, meta in extract_param_metadata(handler).items()
+        }
+
+        assert kinds == {
+            "request": ParameterKind.REQUEST,
+            "person": ParameterKind.BODY,
+            "plain": ParameterKind.AUTO,
+            "tags": ParameterKind.AUTO,
+            "path_value": ParameterKind.PATH,
+            "query_value": ParameterKind.QUERY,
+            "request_param_value": ParameterKind.QUERY,
+            "header_value": ParameterKind.HEADER,
+            "body_value": ParameterKind.BODY,
+            "file_value": ParameterKind.FILE,
+            "form_value": ParameterKind.FORM,
+            "defaulted": ParameterKind.QUERY,
+        }
+
+
+class TestUnmarkedParameterBinding:
+    """Parameters without a marker bind from the path first, then the query string."""
+
+    def test_simple_parameter_binds_from_path(self):
+        @RestController("/api")
+        class C:
+            @GetMapping("/items/{item_id}")
+            async def get(self, item_id: int) -> dict:
+                return {"item_id": item_id}
+
+        response = build_client(C).get("/api/items/7")
+
+        assert response.status_code == 200
+        assert response.json() == {"item_id": 7}
+
+    def test_simple_parameter_falls_back_to_query(self):
+        @RestController("/api")
+        class C:
+            @GetMapping("/items")
+            async def list_items(self, page: int) -> dict:
+                return {"page": page}
+
+        response = build_client(C).get("/api/items?page=3")
+
+        assert response.status_code == 200
+        assert response.json() == {"page": 3}
+
+    def test_simple_parameter_absent_from_path_and_query_is_none(self):
+        @RestController("/api")
+        class C:
+            @GetMapping("/items")
+            async def list_items(self, page: int) -> dict:
+                return {"page": page}
+
+        response = build_client(C).get("/api/items")
+
+        assert response.status_code == 200
+        assert response.json() == {"page": None}
+
+    def test_complex_typed_parameter_named_in_path_binds_from_path(self):
+        @RestController("/api")
+        class C:
+            @GetMapping("/things/{thing_id}")
+            async def get(self, thing_id: uuid.UUID) -> dict:
+                return {"thing_id": str(thing_id), "type": type(thing_id).__name__}
+
+        thing_id = uuid.uuid4()
+        response = build_client(C).get(f"/api/things/{thing_id}")
+
+        assert response.status_code == 200
+        assert response.json() == {"thing_id": str(thing_id), "type": "UUID"}
+
+
+class TestBindingPlanKinds:
+    """ParameterBinder builds a binder for every ParameterKind and rejects anything else."""
+
+    @pytest.mark.parametrize("kind", list(ParameterKind), ids=lambda kind: kind.name)
+    def test_every_kind_builds_a_binder(self, kind):
+        binder = ParameterBinder(
+            max_body_size=1024, max_file_size=1024, max_request_size=1024
+        )
+
+        plan = binder.build_plan(
+            {"value": ParamMetadata(kind=kind, name="value", param_type=str)}, None
+        )
+
+        assert plan is not None
+
+    def test_unknown_kind_raises(self):
+        binder = ParameterBinder(
+            max_body_size=1024, max_file_size=1024, max_request_size=1024
+        )
+
+        with pytest.raises(
+            ValueError, match="Unknown parameter kind 'bogus' for parameter 'value'"
+        ):
+            binder.build_plan(
+                {"value": ParamMetadata(kind="bogus", name="value", param_type=str)},
+                None,
+            )

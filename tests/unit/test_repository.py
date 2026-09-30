@@ -25,7 +25,7 @@ from mitsuki.data import (
     get_entity_metadata,
     set_database_adapter,
 )
-from mitsuki.exceptions import UUIDGenerationException
+from mitsuki.exceptions import QueryException, UUIDGenerationException
 
 
 @pytest_asyncio.fixture
@@ -358,6 +358,84 @@ class TestQueryDSL:
 
         count = await repo.count_by_active(True)
         assert count == 2
+
+    @pytest.mark.asyncio
+    async def test_delete_by_field(self, setup_database):
+        """Should support delete_by_field queries."""
+        adapter = setup_database
+        await adapter.create_table_if_not_exists(get_entity_metadata(User))
+
+        @CrudRepository(entity=User)
+        class UserRepo:
+            async def delete_by_active(self, active: bool) -> None:
+                pass
+
+        repo = UserRepo()
+
+        await repo.save(User(name="User1", email="user1@example.com", active=True))
+        await repo.save(User(name="User2", email="user2@example.com", active=False))
+        await repo.save(User(name="User3", email="user3@example.com", active=False))
+
+        assert await repo.delete_by_active(False) is None
+        remaining = await repo.find_all()
+        assert [user.name for user in remaining] == ["User1"]
+
+    @pytest.mark.asyncio
+    async def test_exists_by_field(self, setup_database):
+        """Should support exists_by_field queries."""
+        adapter = setup_database
+        await adapter.create_table_if_not_exists(get_entity_metadata(User))
+
+        @CrudRepository(entity=User)
+        class UserRepo:
+            async def exists_by_email(self, email: str) -> bool:
+                pass
+
+        repo = UserRepo()
+
+        await repo.save(User(name="User1", email="user1@example.com"))
+
+        assert await repo.exists_by_email("user1@example.com") is True
+        assert await repo.exists_by_email("nobody@example.com") is False
+
+    @pytest.mark.asyncio
+    async def test_find_by_fields_or(self, setup_database):
+        """Should support find_by_field_or_field queries."""
+        adapter = setup_database
+        await adapter.create_table_if_not_exists(get_entity_metadata(User))
+
+        @CrudRepository(entity=User)
+        class UserRepo:
+            async def find_by_name_or_age(self, name: str, age: int) -> List[User]:
+                pass
+
+        repo = UserRepo()
+
+        await repo.save(User(name="Alice", email="a@example.com", age=30))
+        await repo.save(User(name="Bob", email="b@example.com", age=40))
+        await repo.save(User(name="Carol", email="c@example.com", age=50))
+
+        results = await repo.find_by_name_or_age("Alice", 50)
+        assert sorted(user.name for user in results) == ["Alice", "Carol"]
+
+    @pytest.mark.asyncio
+    async def test_wrong_argument_count_raises(self, setup_database):
+        """A query DSL call with the wrong number of arguments raises QueryException."""
+        adapter = setup_database
+        await adapter.create_table_if_not_exists(get_entity_metadata(User))
+
+        @CrudRepository(entity=User)
+        class UserRepo:
+            async def find_by_name(self, name: str) -> List[User]:
+                pass
+
+        repo = UserRepo()
+
+        with pytest.raises(
+            QueryException,
+            match="Cannot parse method 'find_by_name': Expected 1 arguments, got 2",
+        ):
+            await repo.find_by_name("Alice", "Bob")
 
 
 class TestColumnRepository:

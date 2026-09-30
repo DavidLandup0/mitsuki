@@ -2,8 +2,10 @@ import re
 
 import pytest
 
+from mitsuki.core.instrumentation import InstrumentationRegistry
 from mitsuki.core.metrics_core import MetricsStorage
 from mitsuki.core.metrics_formatters import format_json, format_prometheus
+from mitsuki.core.scheduler import TaskScheduler, TaskStatistics
 
 
 class TestPrometheusFormatter:
@@ -327,3 +329,70 @@ class TestSchedulerAverageDuration:
         task = format_json(storage)["scheduler"]["tasks"][0]
 
         assert task["average_duration_ms"] is None
+
+
+class TestProducerMetricNames:
+    """The JSON formatter reads back every metric the framework records."""
+
+    @pytest.fixture
+    def storage(self):
+        storage = MetricsStorage()
+        storage.enable()
+        return storage
+
+    @pytest.fixture
+    def instrumentation(self, storage):
+        registry = InstrumentationRegistry(storage)
+        registry.enable(track_memory=True)
+        yield registry
+        registry.disable()
+
+    def test_scheduler_metrics(self, storage):
+        scheduler = TaskScheduler(storage)
+        stats = TaskStatistics("Reports.nightly", {"fixed_rate": 1000})
+        scheduler._record_success(stats, "Reports.nightly", 0.02)
+        scheduler._record_failure(stats, "Reports.nightly", ValueError("boom"))
+        storage.gauge("scheduler_tasks_running").set(1, {"task": "Reports.nightly"})
+
+        [task] = format_json(storage)["scheduler"]["tasks"]
+
+        assert task == {
+            "name": "Reports.nightly",
+            "executions": 2,
+            "failures": 1,
+            "average_duration_ms": 20.0,
+            "status": "running",
+        }
+
+    def test_system_metrics(self, storage, instrumentation):
+        instrumentation._sample_once()
+
+        system = format_json(storage)["instrumentation"]["system"]
+
+        assert system["memory"]["rss_bytes"] > 0
+        assert system["memory"]["vms_bytes"] > 0
+        assert system["memory"]["traced_peak_bytes"] >= 0
+        assert "percent" in system["cpu"]
+
+    def test_http_metrics(self, storage, instrumentation):
+        instrumentation.record_http_request("GET", "/api/users", 200, 0.01)
+        instrumentation.record_http_request("POST", "/api/users", 201, 0.03)
+
+        http = format_json(storage)["instrumentation"]["http"]
+
+        assert http["total_requests"] == 2
+        assert http["requests_by_method"] == {"GET": 1, "POST": 1}
+        assert http["responses_by_status"] == {"200": 1, "201": 1}
+        assert http["latency"]["avg_ms"] == 20.0
+
+    def test_component_metrics(self, storage, instrumentation):
+        instrumentation.record_component_call("UserService", "get_user", 0.01)
+        instrumentation.record_component_call(
+            "UserService", "get_user", 0.03, error=True
+        )
+
+        components = format_json(storage)["instrumentation"]["components"]
+
+        assert components["UserService"]["calls"] == 2
+        assert components["UserService"]["avg_duration_ms"] == 20.0
+        assert components["UserService"]["methods"]["get_user"]["calls"] == 2

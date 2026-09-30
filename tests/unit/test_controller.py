@@ -2,9 +2,11 @@
 Unit tests for @Controller, @RestController, and request mappings.
 """
 
+import asyncio
 import inspect
 
 import pytest
+from starlette.testclient import TestClient
 
 from mitsuki import (
     Controller,
@@ -22,6 +24,7 @@ from mitsuki import (
 )
 from mitsuki.core.container import DIContainer, get_container, set_container
 from mitsuki.core.enums import StereotypeType
+from mitsuki.core.server import MitsukiASGIApp
 
 
 @pytest.fixture(autouse=True)
@@ -307,3 +310,59 @@ class TestRouterAlias:
 
         assert ItemRouter._stereotype_subtype == StereotypeType.CONTROLLER
         assert ItemRouter.__mitsuki_base_path__ == "/api/items"
+
+
+class MockContext:
+    """Mock application context for testing."""
+
+    def __init__(self, controllers):
+        self.controllers = controllers
+
+
+def _running_in_event_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
+class TestSyncHandlers:
+    """Tests for synchronous (non-async) handler methods."""
+
+    def build_client(self):
+        @RestController("/api")
+        class SyncController:
+            @GetMapping("/items/{item_id}")
+            def get_item(
+                self, item_id: int = PathVariable(), q: str = QueryParam(default="")
+            ) -> dict:
+                return {
+                    "item_id": item_id,
+                    "q": q,
+                    "in_event_loop": _running_in_event_loop(),
+                }
+
+            @PostMapping("/items")
+            def create_item(self, payload: dict = RequestBody()) -> dict:
+                return {"created": payload}
+
+        return TestClient(MitsukiASGIApp(MockContext([(SyncController, "/api")])))
+
+    def test_sync_get_handler_binds_parameters(self):
+        response = self.build_client().get("/api/items/5?q=abc")
+
+        assert response.status_code == 200
+        assert response.json()["item_id"] == 5
+        assert response.json()["q"] == "abc"
+
+    def test_sync_handler_runs_outside_the_event_loop(self):
+        response = self.build_client().get("/api/items/5")
+
+        assert response.json()["in_event_loop"] is False
+
+    def test_sync_post_handler_receives_body(self):
+        response = self.build_client().post("/api/items", json={"name": "x"})
+
+        assert response.status_code == 200
+        assert response.json() == {"created": {"name": "x"}}

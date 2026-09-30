@@ -7,7 +7,10 @@ import pytest
 from mitsuki.core.container import DIContainer, get_container, set_container
 from mitsuki.core.decorators import Component, Repository, Service
 from mitsuki.core.enums import Scope, StereotypeType
-from mitsuki.exceptions import ComponentNotFoundException
+from mitsuki.exceptions import (
+    CircularDependencyException,
+    ComponentNotFoundException,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -433,3 +436,67 @@ class TestScopeEnum:
         instance1 = container.get(StringScopeService)
         instance2 = container.get(StringScopeService)
         assert instance1 is not instance2
+
+
+class _CycleA:
+    def __init__(self, b: "_CycleB"):
+        self.b = b
+
+
+class _CycleB:
+    def __init__(self, a: _CycleA):
+        self.a = a
+
+
+class _SelfCycle:
+    def __init__(self, other: "_SelfCycle"):
+        self.other = other
+
+
+class TestCircularDependencies:
+    """Tests for circular dependency detection."""
+
+    @pytest.mark.parametrize("scope", [Scope.SINGLETON, Scope.PROTOTYPE])
+    def test_two_component_cycle_raises(self, scope):
+        container = DIContainer()
+        container.register(_CycleA, scope=scope)
+        container.register(_CycleB, scope=scope)
+
+        with pytest.raises(
+            CircularDependencyException,
+            match="Circular dependency detected for _CycleA",
+        ):
+            container.get(_CycleA)
+
+    @pytest.mark.parametrize("scope", [Scope.SINGLETON, Scope.PROTOTYPE])
+    def test_self_dependency_raises(self, scope):
+        container = DIContainer()
+        container.register(_SelfCycle, scope=scope)
+
+        with pytest.raises(
+            CircularDependencyException,
+            match="Circular dependency detected for _SelfCycle",
+        ):
+            container.get(_SelfCycle)
+
+    @pytest.mark.parametrize("scope", [Scope.SINGLETON, Scope.PROTOTYPE])
+    def test_failed_resolution_leaves_no_component_marked_in_progress(self, scope):
+        container = DIContainer()
+        container.register(_CycleA, scope=scope)
+        container.register(_CycleB, scope=scope)
+
+        with pytest.raises(CircularDependencyException):
+            container.get(_CycleA)
+
+        assert container._resolving.stack == set()
+
+    def test_singleton_cycle_is_not_cached(self):
+        container = DIContainer()
+        container.register(_CycleA)
+        container.register(_CycleB)
+
+        with pytest.raises(CircularDependencyException):
+            container.get(_CycleA)
+
+        assert container._components[_CycleA].instance is None
+        assert container._components[_CycleB].instance is None

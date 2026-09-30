@@ -3,14 +3,22 @@ Tests for custom logging via @Provider decorator.
 """
 
 import logging
+import logging.config
+import sys
 from typing import List
+
+import pytest
 
 from mitsuki.config.properties import reload_config
 from mitsuki.core.application import ApplicationContext
 from mitsuki.core.container import DIContainer, get_container, set_container
 from mitsuki.core.decorators import Configuration, Provider
 from mitsuki.core.enums import Scope
-from mitsuki.core.logging import ColoredFormatter, configure_logging
+from mitsuki.core.logging import (
+    ColoredFormatter,
+    configure_logging,
+    get_granian_log_config,
+)
 from mitsuki.core.providers import initialize_configuration_providers
 
 
@@ -312,3 +320,56 @@ class TestCustomHandlersOnly:
         assert len(root_logger.handlers) == 1
         # Handler should exist but formatter depends on configure_logging implementation
         assert root_logger.handlers[0] is not None
+
+
+GRANIAN_LOGGERS = ["granian", "granian.access", "granian.error"]
+
+
+@pytest.fixture
+def restore_granian_loggers():
+    """Restore the granian loggers' state after dictConfig replaces it."""
+    saved = {}
+    for name in GRANIAN_LOGGERS:
+        logger = logging.getLogger(name)
+        saved[name] = (logger.level, logger.propagate, list(logger.handlers))
+    yield
+    for name, (level, propagate, handlers) in saved.items():
+        logger = logging.getLogger(name)
+        logger.setLevel(level)
+        logger.propagate = propagate
+        logger.handlers[:] = handlers
+
+
+class TestGranianLogConfig:
+    """Tests for the dictConfig passed to Granian."""
+
+    @pytest.mark.parametrize("name", GRANIAN_LOGGERS)
+    def test_loggers_are_configured_at_the_requested_level(
+        self, name, restore_granian_loggers
+    ):
+        logging.config.dictConfig(get_granian_log_config(level="debug"))
+
+        logger = logging.getLogger(name)
+        assert logger.level == logging.DEBUG
+        assert logger.propagate is False
+
+    @pytest.mark.parametrize("name", GRANIAN_LOGGERS)
+    def test_loggers_write_colored_output_to_stdout(
+        self, name, restore_granian_loggers
+    ):
+        logging.config.dictConfig(
+            get_granian_log_config(level="info", format="%(levelname)s|%(message)s")
+        )
+
+        [handler] = logging.getLogger(name).handlers
+        assert isinstance(handler, logging.StreamHandler)
+        assert handler.stream is sys.stdout
+        assert isinstance(handler.formatter, ColoredFormatter)
+        assert handler.formatter._fmt == "%(levelname)s|%(message)s"
+
+    def test_config_leaves_other_loggers_enabled(self, restore_granian_loggers):
+        other = logging.getLogger("mitsuki.test.granian.bystander")
+
+        logging.config.dictConfig(get_granian_log_config())
+
+        assert other.disabled is False
