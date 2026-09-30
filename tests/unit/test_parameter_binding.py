@@ -6,6 +6,7 @@ validation, including typing constructs (Optional, List[...], Any) that are
 not runtime classes.
 """
 
+import uuid
 from dataclasses import dataclass
 from typing import Any, List, Optional
 from unittest.mock import MagicMock, patch
@@ -658,3 +659,68 @@ class TestMultipartSizeLimits:
             await plan.bind(Request(scope, receive))
 
         assert chunks_sent <= max_request_size // chunk_size + 1
+
+
+class TestPathVariableBinding:
+    """Variables in the route path bind from the URL, whatever their type."""
+
+    def test_complex_path_variable_ignores_body(self):
+        @RestController("/api")
+        class C:
+            @PostMapping("/users/{user_id}")
+            async def update(self, user_id: uuid.UUID) -> dict:
+                return {"user_id": str(user_id)}
+
+        url_id, body_id = uuid.uuid4(), uuid.uuid4()
+        response = build_client(C).post(f"/api/users/{url_id}", json=str(body_id))
+
+        assert response.status_code == 200
+        assert response.json() == {"user_id": str(url_id)}
+
+    def test_complex_path_variable_on_get(self):
+        @RestController("/api")
+        class C:
+            @GetMapping("/users/{user_id}")
+            async def get(self, user_id: uuid.UUID) -> dict:
+                return {"user_id": str(user_id)}
+
+        url_id = uuid.uuid4()
+        response = build_client(C).get(f"/api/users/{url_id}")
+
+        assert response.status_code == 200
+        assert response.json() == {"user_id": str(url_id)}
+
+    def test_complex_path_variable_in_controller_path(self):
+        @RestController("/orgs/{org_id}")
+        class C:
+            @GetMapping("/members")
+            async def members(self, org_id: uuid.UUID) -> dict:
+                return {"org_id": str(org_id)}
+
+        org_id = uuid.uuid4()
+        response = build_client(C, prefix="/orgs/{org_id}").get(
+            f"/orgs/{org_id}/members"
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"org_id": str(org_id)}
+
+
+class TestContentLengthHeader:
+    """A malformed Content-Length header does not leak parser errors."""
+
+    def test_non_numeric_content_length(self):
+        @RestController("/api")
+        class C:
+            @PostMapping("/echo")
+            async def echo(self, payload: dict = RequestBody()) -> dict:
+                return payload
+
+        response = build_client(C).post(
+            "/api/echo",
+            content=b'{"a": 1}',
+            headers={"content-type": "application/json", "content-length": "abc"},
+        )
+
+        assert "invalid literal" not in response.text
+        assert response.json() == {"a": 1}

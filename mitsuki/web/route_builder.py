@@ -1,5 +1,6 @@
 import inspect
 import logging
+import re
 from typing import Any, Callable, List, Optional
 
 from starlette.requests import Request
@@ -78,6 +79,9 @@ class RouteBuilder:
                     route_meta = method.__mitsuki_route__
                     full_path = self._combine_paths(base_path, route_meta.path)
                     param_metadata = extract_param_metadata(method)
+                    for var in re.findall(r"{(\w+)", full_path):
+                        if var in param_metadata and param_metadata[var].kind == "body":
+                            param_metadata[var].kind = "path"
                     endpoint = self._create_endpoint(method, param_metadata, route_meta)
 
                     # Register route

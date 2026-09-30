@@ -204,7 +204,11 @@ class BindingPlan:
         too_large = f"Request body too large (max {max_size} bytes)"
 
         content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > max_size:
+        if (
+            content_length
+            and content_length.isdigit()
+            and int(content_length) > max_size
+        ):
             raise RequestValidationException(too_large)
 
         chunks = bytearray()
