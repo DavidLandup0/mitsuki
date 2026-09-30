@@ -206,7 +206,7 @@ class BindingPlan:
         content_length = request.headers.get("content-length")
         if (
             content_length
-            and content_length.isdigit()
+            and content_length.isdecimal()
             and int(content_length) > max_size
         ):
             raise RequestValidationException(too_large)

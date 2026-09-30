@@ -709,18 +709,28 @@ class TestPathVariableBinding:
 class TestContentLengthHeader:
     """A malformed Content-Length header does not leak parser errors."""
 
-    def test_non_numeric_content_length(self):
-        @RestController("/api")
-        class C:
-            @PostMapping("/echo")
-            async def echo(self, payload: dict = RequestBody()) -> dict:
-                return payload
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("content_length", [b"abc", "\u00b2".encode("latin-1")])
+    async def test_non_numeric_content_length(self, content_length):
+        async def echo(payload: dict = RequestBody()):
+            pass
 
-        response = build_client(C).post(
-            "/api/echo",
-            content=b'{"a": 1}',
-            headers={"content-type": "application/json", "content-length": "abc"},
-        )
+        plan = ParameterBinder(
+            max_body_size=1024, max_file_size=1024, max_request_size=1024
+        ).build_plan(extract_param_metadata(echo), None)
 
-        assert "invalid literal" not in response.text
-        assert response.json() == {"a": 1}
+        async def receive():
+            return {"type": "http.request", "body": b'{"a": 1}', "more_body": False}
+
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/echo",
+            "query_string": b"",
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", content_length),
+            ],
+        }
+
+        assert await plan.bind(Request(scope, receive)) == {"payload": {"a": 1}}
