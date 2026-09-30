@@ -346,6 +346,55 @@ class TestCustomQueries:
         assert "bad_delete" in str(exc_info.value)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "/*c*/DELETE FROM users",
+            "-- x\nDELETE FROM users",
+            "WITH t AS (SELECT 1) DELETE FROM users",
+            "SELECT 1; DELETE FROM users",
+        ],
+    )
+    async def test_modifying_query_behind_prefix_requires_decorator(
+        self, setup_database, query
+    ):
+        """Should require @Modifying wherever the modifying statement appears."""
+
+        @CrudRepository(entity=User)
+        class PrefixedRepository:
+            @Query(query, native=True)
+            async def purge(self): ...
+
+        adapter = setup_database
+        await adapter.create_table_if_not_exists(get_entity_metadata(User))
+
+        repo = PrefixedRepository()
+        await repo.save(User(name="Test", email="test@example.com", age=25))
+
+        with pytest.raises(QueryException, match="missing @Modifying decorator"):
+            await repo.purge()
+
+        assert await repo.count() == 1
+
+    @pytest.mark.asyncio
+    async def test_unparseable_orm_query_raises_error(self, setup_database):
+        """Should raise QueryException for an ORM query it cannot rewrite."""
+
+        @CrudRepository(entity=User)
+        class ColumnListRepository:
+            @Query("SELECT p.id, p.title FROM Post p")
+            async def find_post_titles(self): ...
+
+        adapter = setup_database
+        await adapter.create_table_if_not_exists(get_entity_metadata(User))
+        await adapter.create_table_if_not_exists(get_entity_metadata(Post))
+
+        repo = ColumnListRepository()
+
+        with pytest.raises(QueryException, match="native=True"):
+            await repo.find_post_titles()
+
+    @pytest.mark.asyncio
     async def test_query_naming_another_entity_raises_error(self, setup_database):
         """Should raise QueryException if an ORM query names another repository's entity."""
 

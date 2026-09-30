@@ -181,17 +181,6 @@ async def find_high_value_customers(
 ) -> List[User]: ...
 ```
 
-### Aggregation Queries
-
-```python
-@Query("""
-    SELECT COUNT(u), AVG(u.age)
-    FROM User u
-    WHERE u.active = :active
-""")
-async def get_active_user_stats(self, active: bool) -> dict: ...
-```
-
 ## Native SQL Queries
 
 For database-specific optimizations or features, use native SQL with `native=True`.

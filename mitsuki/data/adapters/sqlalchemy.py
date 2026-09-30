@@ -534,8 +534,9 @@ class SQLAlchemyAdapter(DatabaseAdapter):
                     entity_name = match.group(2)
                     alias = match.group(3)
                 else:
-                    # No ORM pattern found, return as-is (probably native SQL)
-                    return query_string
+                    raise QueryException(
+                        "Could not parse ORM query. Use native=True for raw SQL."
+                    )
 
         entity_class_name = entity_metadata.entity_class.__name__
         if entity_name != entity_class_name:

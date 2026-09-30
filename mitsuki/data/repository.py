@@ -347,8 +347,8 @@ class CrudRepositoryProxy:
         Returns:
             True if query modifies data, False otherwise
         """
-        operation_pattern = r"^\s*(UPDATE|DELETE|INSERT)\b"
-        match = re.match(operation_pattern, query_string, re.IGNORECASE)
+        operation_pattern = r"\b(UPDATE|DELETE|INSERT)\b"
+        match = re.search(operation_pattern, query_string, re.IGNORECASE)
         return match is not None
 
     async def _handle_custom_query(self, method: Any, args: tuple, kwargs: dict) -> Any:
