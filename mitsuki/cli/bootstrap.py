@@ -1,8 +1,8 @@
 from pathlib import Path
+from typing import Optional
 
 import click
 
-from mitsuki.core.enums import DatabaseDialect
 from mitsuki.core.logging import get_logger
 from mitsuki.grafana import write_dashboard
 
@@ -26,6 +26,48 @@ def write_file(path: Path, content: str) -> None:
     """Write content to a file."""
     path.write_text(content)
     logger.info(f"Created file: {path}")
+
+
+def build_database_url(db_type: str, app_name: str, env: Optional[str] = None) -> str:
+    """
+    Build the database URL for a dialect, application, and optional profile.
+
+    SQLite URLs are file paths and take a .db suffix; the server dialects are
+    URLs with the application (and profile) as the database name.
+
+    Args:
+        db_type: One of sqlite, postgresql, mysql
+        app_name: Normalized application name
+        env: Profile suffix (dev, stg, prod) or None for the base config
+
+    Returns:
+        Database connection URL
+    """
+    db_name = f"{app_name}_{env}" if env else app_name
+
+    if db_type == "sqlite":
+        return f"sqlite:///{db_name}.db"
+    return f"{db_type}://localhost/{db_name}"
+
+
+def render_env_config(db_type: str, app_name: str, env: str) -> str:
+    """
+    Render a profile configuration file with the correct database URL.
+
+    Args:
+        db_type: One of sqlite, postgresql, mysql
+        app_name: Normalized application name
+        env: Profile name (dev, stg, prod)
+
+    Returns:
+        Rendered YAML content
+    """
+    content = read_template(f"application-{env}.yml.tpl").replace(
+        "{{app_name}}", app_name
+    )
+    return content.replace(
+        "{{DATABASE_URL}}", build_database_url(db_type, app_name, env)
+    )
 
 
 def create_domain_files(app_dir: Path, app_name: str, domain_name: str) -> None:
@@ -172,28 +214,15 @@ def init():
         write_file(app_dir / "domain" / "__init__.py", domain_init)
 
     # Create configuration files
-    db_url_map = {
-        "sqlite": f"sqlite:///{app_name}.db",
-        "postgresql": f"postgresql://localhost/{app_name}",
-        "mysql": f"mysql://localhost/{app_name}",
-    }
-    db_url = db_url_map[db_type]
-
     app_yml = read_template("application.yml.tpl").replace("{{app_name}}", app_name)
-    app_yml = app_yml.replace("sqlite:///{{app_name}}.db", db_url)
+    app_yml = app_yml.replace("{{DATABASE_URL}}", build_database_url(db_type, app_name))
     write_file(project_root / "application.yml", app_yml)
 
     for env in ["dev", "stg", "prod"]:
-        env_yml = read_template(f"application-{env}.yml.tpl").replace(
-            "{{app_name}}", app_name
+        write_file(
+            project_root / f"application-{env}.yml",
+            render_env_config(db_type, app_name, env),
         )
-        if db_type == DatabaseDialect.SQLITE:
-            env_yml = env_yml.replace(
-                "postgresql://localhost/{{app_name}}", f"sqlite:///{app_name}.db"
-            )
-        elif db_type == DatabaseDialect.MYSQL:
-            env_yml = env_yml.replace("postgresql://localhost/", "mysql://localhost/")
-        write_file(project_root / f"application-{env}.yml", env_yml)
 
     # Create README
     app_title = app_name.replace("_", " ").title()

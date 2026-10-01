@@ -1,7 +1,7 @@
 # Staging Configuration
 
 database:
-  url: postgresql://localhost/{{app_name}}_staging
+  url: {{DATABASE_URL}}
   echo: false
   pool:
     enabled: true

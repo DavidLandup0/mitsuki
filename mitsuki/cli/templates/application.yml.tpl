@@ -15,7 +15,7 @@ server:
   #     - "*"
 
 database:
-  url: sqlite:///app.db
+  url: {{DATABASE_URL}}
   adapter: sqlalchemy
   echo: false # SQLAlchemy logs
   pool:

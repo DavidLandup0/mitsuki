@@ -1,7 +1,7 @@
 # Development Configuration
 
 database:
-  url: sqlite:///dev.db
+  url: {{DATABASE_URL}}
   echo: true
 
 logging:

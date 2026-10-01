@@ -1,7 +1,7 @@
 # Production Configuration
 
 database:
-  url: postgresql://localhost/{{app_name}}_production
+  url: {{DATABASE_URL}}
   echo: false
   pool:
     enabled: true

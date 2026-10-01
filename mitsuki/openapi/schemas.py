@@ -40,15 +40,17 @@ def type_to_schema(python_type: Any, use_refs: bool = True) -> Dict[str, Any]:
             non_none_types = [a for a in args if a is not type(None)]
             if len(non_none_types) == 1:
                 # Optional[T] - make schema nullable
-                base_schema = type_to_schema(non_none_types[0])
+                base_schema = type_to_schema(non_none_types[0], use_refs=use_refs)
                 base_schema["nullable"] = True
                 return base_schema
             else:
                 # Union of multiple types
-                return {"anyOf": [type_to_schema(arg) for arg in args]}
+                return {
+                    "anyOf": [type_to_schema(arg, use_refs=use_refs) for arg in args]
+                }
         else:
             # Union without None
-            return {"anyOf": [type_to_schema(arg) for arg in args]}
+            return {"anyOf": [type_to_schema(arg, use_refs=use_refs) for arg in args]}
 
     # Primitive types
     if python_type is int:
@@ -64,7 +66,10 @@ def type_to_schema(python_type: Any, use_refs: bool = True) -> Dict[str, Any]:
     if origin is list:
         args = get_args(python_type)
         if args:
-            return {"type": "array", "items": type_to_schema(args[0])}
+            return {
+                "type": "array",
+                "items": type_to_schema(args[0], use_refs=use_refs),
+            }
         return {"type": "array", "items": {}}
 
     # Dict[str, T]
@@ -72,7 +77,10 @@ def type_to_schema(python_type: Any, use_refs: bool = True) -> Dict[str, Any]:
         args = get_args(python_type)
         if len(args) == 2:
             # Specific value type
-            return {"type": "object", "additionalProperties": type_to_schema(args[1])}
+            return {
+                "type": "object",
+                "additionalProperties": type_to_schema(args[1], use_refs=use_refs),
+            }
         return {"type": "object", "additionalProperties": True}
 
     # Enum
