@@ -35,7 +35,7 @@ class TestAlembicWorkflowIntegration:
         return result
 
     def test_full_workflow_default_profile(self, temp_project):
-        """Test complete Alembic workflow with default profile (app.db)."""
+        """Test complete Alembic workflow with default profile."""
         project_name = "test_app"
 
         # 1. Create project with Alembic
@@ -79,7 +79,7 @@ class TestAlembicWorkflowIntegration:
         assert "Running upgrade" in result.stderr
 
         # 4. Verify database was created with correct schema
-        db_path = project_dir / "app.db"
+        db_path = project_dir / f"{project_name}.db"
         assert db_path.exists()
 
         conn = sqlite3.connect(db_path)
@@ -106,7 +106,7 @@ class TestAlembicWorkflowIntegration:
         conn.close()
 
     def test_workflow_with_dev_profile(self, temp_project):
-        """Test Alembic workflow using dev profile (dev.db)."""
+        """Test Alembic workflow using the dev profile."""
         project_name = "test_dev_app"
 
         # Create project
@@ -140,15 +140,15 @@ class TestAlembicWorkflowIntegration:
         )
         assert result.returncode == 0
 
-        # Verify dev.db was created
-        db_path = project_dir / "dev.db"
+        # Verify the dev database was created
+        db_path = project_dir / f"{project_name}_dev.db"
         assert db_path.exists()
 
-        # Verify app.db was NOT created (since we used dev profile)
-        app_db_path = project_dir / "app.db"
-        assert not app_db_path.exists()
+        # Verify the default database was NOT created (since we used dev profile)
+        default_db_path = project_dir / f"{project_name}.db"
+        assert not default_db_path.exists()
 
-        # Verify schema in dev.db
+        # Verify schema in the dev database
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute(
@@ -240,7 +240,7 @@ class TestAlembicWorkflowIntegration:
         subprocess.run(["alembic", "upgrade", "head"], capture_output=True, timeout=30)
 
         # Verify table exists
-        db_path = project_dir / "app.db"
+        db_path = project_dir / f"{project_name}.db"
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute(
@@ -291,11 +291,13 @@ class TestAlembicWorkflowIntegration:
         )
 
         # Both databases should exist
-        assert (project_dir / "app.db").exists()
-        assert (project_dir / "dev.db").exists()
+        default_db = f"{project_name}.db"
+        dev_db = f"{project_name}_dev.db"
+        assert (project_dir / default_db).exists()
+        assert (project_dir / dev_db).exists()
 
         # Both should have posts table
-        for db_name in ["app.db", "dev.db"]:
+        for db_name in [default_db, dev_db]:
             conn = sqlite3.connect(project_dir / db_name)
             cursor = conn.cursor()
             cursor.execute(
