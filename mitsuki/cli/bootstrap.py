@@ -3,6 +3,7 @@ from typing import Optional
 
 import click
 
+from mitsuki.core.enums import DatabaseDialect
 from mitsuki.core.logging import get_logger
 from mitsuki.grafana import write_dashboard
 
@@ -28,7 +29,9 @@ def write_file(path: Path, content: str) -> None:
     logger.info(f"Created file: {path}")
 
 
-def build_database_url(db_type: str, app_name: str, env: Optional[str] = None) -> str:
+def build_database_url(
+    db_type: DatabaseDialect, app_name: str, env: Optional[str] = None
+) -> str:
     """
     Build the database URL for a dialect, application, and optional profile.
 
@@ -36,7 +39,7 @@ def build_database_url(db_type: str, app_name: str, env: Optional[str] = None) -
     URLs with the application (and profile) as the database name.
 
     Args:
-        db_type: One of sqlite, postgresql, mysql
+        db_type: Database dialect
         app_name: Normalized application name
         env: Profile suffix (dev, stg, prod) or None for the base config
 
@@ -45,17 +48,17 @@ def build_database_url(db_type: str, app_name: str, env: Optional[str] = None) -
     """
     db_name = f"{app_name}_{env}" if env else app_name
 
-    if db_type == "sqlite":
+    if db_type == DatabaseDialect.SQLITE:
         return f"sqlite:///{db_name}.db"
-    return f"{db_type}://localhost/{db_name}"
+    return f"{db_type.value}://localhost/{db_name}"
 
 
-def render_env_config(db_type: str, app_name: str, env: str) -> str:
+def render_env_config(db_type: DatabaseDialect, app_name: str, env: str) -> str:
     """
     Render a profile configuration file with the correct database URL.
 
     Args:
-        db_type: One of sqlite, postgresql, mysql
+        db_type: Database dialect
         app_name: Normalized application name
         env: Profile name (dev, stg, prod)
 
@@ -124,10 +127,14 @@ def init():
     description = click.prompt("Description (optional)", default="", show_default=False)
 
     # Database type
-    db_type = click.prompt(
-        "Database type",
-        type=click.Choice(["sqlite", "postgresql", "mysql"], case_sensitive=False),
-        default="sqlite",
+    db_type = DatabaseDialect(
+        click.prompt(
+            "Database type",
+            type=click.Choice(
+                [dialect.value for dialect in DatabaseDialect], case_sensitive=False
+            ),
+            default=DatabaseDialect.SQLITE.value,
+        )
     )
 
     # Starter domain
