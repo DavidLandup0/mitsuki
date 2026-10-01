@@ -45,4 +45,6 @@ jobs:
     - name: Install dependencies
       run: uv sync --extra dev
     - name: Run tests
-      run: uv run coverage run -m pytest --cov=mitsuki .
+      run: uv run coverage run -m pytest .
+    - name: Check coverage
+      run: uv run coverage report

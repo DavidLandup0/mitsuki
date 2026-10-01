@@ -84,3 +84,17 @@ exclude = [
     "examples",
     "benchmarks",
 ]
+
+[tool.coverage.run]
+source = ["mitsuki"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

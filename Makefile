@@ -6,4 +6,5 @@ format:
 	uv run ruff format .
 
 test:
-	coverage run -m pytest --cov=mitsuki .
+	uv run coverage run -m pytest .
+	uv run coverage report
