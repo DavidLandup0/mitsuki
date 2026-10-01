@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mitsuki"
-version = "0.2.1"
+version = "0.2.2"
 description = "Python web framework with a Spring Boot-style programming model: dependency injection, layered components and convention over configuration, with Python's productivity."
 readme = "README.md"
 requires-python = ">=3.9"

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.2
+
+### Fixes
+- **`use_refs=False` inlines nested schemas.** `Optional`, union, `list` and `dict` members still emitted a `$ref` into the schema registry instead of expanding in place.
+- **`mitsuki init` scaffolds the database you select.** `sqlite`, `postgresql` and `mysql` all produced SQLite configuration, because the templates and the rewriter disagreed on the placeholder to replace. The generated URL is scoped to the application and profile, so separate projects no longer share a database file.
+
+### Testing
+- **CI fails below 90% coverage.** The suite runs under `coverage` with branch tracking, and both the Makefile and CI report against a 90% floor.
+
 ## 0.2.1
 
 ### Breaking Changes
