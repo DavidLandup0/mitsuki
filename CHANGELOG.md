@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## 0.2.2
 
 ### Changes
-- **Consolidated enum usage and replaced bare strings with enums.**
+- Consolidated enum usage and replaced bare strings with enums.
 
 ### Fixes
 - **During OpenAPI generation, `use_refs=False` inlines nested schemas.** `Optional`, union, `list` and `dict` members emitted a `$ref` into the schema registry instead of expanding in place.
