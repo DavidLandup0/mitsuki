@@ -4,12 +4,14 @@ from typing import Any, Optional, get_origin, get_type_hints
 
 from starlette.requests import Request
 
+from mitsuki.core.enums import ParameterKind
+
 
 @dataclass
 class ParamMetadata:
     """Metadata for parameter injection."""
 
-    kind: str  # 'path', 'query', 'body', 'header', 'file', 'form', 'request'
+    kind: ParameterKind
     name: Optional[str] = None
     required: bool = True
     default: Any = None
@@ -190,7 +192,7 @@ def extract_param_metadata(func) -> dict:
         # Check if parameter type is Request - inject it automatically
         if param_type is Request:
             metadata[param_name] = ParamMetadata(
-                kind="request",
+                kind=ParameterKind.REQUEST,
                 name=param_name,
                 required=True,
                 param_type=Request,
@@ -198,14 +200,14 @@ def extract_param_metadata(func) -> dict:
         # Check if default is one of our parameter markers
         elif isinstance(default, PathVariable):
             metadata[param_name] = ParamMetadata(
-                kind="path",
+                kind=ParameterKind.PATH,
                 name=default.name or param_name,
                 required=default.required,
                 param_type=param_type,
             )
         elif isinstance(default, (QueryParam, RequestParam)):
             metadata[param_name] = ParamMetadata(
-                kind="query",
+                kind=ParameterKind.QUERY,
                 name=default.name or param_name,
                 required=default.required,
                 default=default.default,
@@ -213,13 +215,13 @@ def extract_param_metadata(func) -> dict:
             )
         elif isinstance(default, RequestBody):
             metadata[param_name] = ParamMetadata(
-                kind="body",
+                kind=ParameterKind.BODY,
                 required=default.required,
                 param_type=param_type,
             )
         elif isinstance(default, RequestHeader):
             metadata[param_name] = ParamMetadata(
-                kind="header",
+                kind=ParameterKind.HEADER,
                 name=default.name or param_name,
                 required=default.required,
                 default=default.default,
@@ -227,7 +229,7 @@ def extract_param_metadata(func) -> dict:
             )
         elif isinstance(default, FormFile):
             metadata[param_name] = ParamMetadata(
-                kind="file",
+                kind=ParameterKind.FILE,
                 name=default.name or param_name,
                 required=default.required,
                 param_type=param_type,
@@ -236,7 +238,7 @@ def extract_param_metadata(func) -> dict:
             )
         elif isinstance(default, FormParam):
             metadata[param_name] = ParamMetadata(
-                kind="form",
+                kind=ParameterKind.FORM,
                 name=default.name or param_name,
                 required=default.required,
                 default=default.default,
@@ -249,17 +251,20 @@ def extract_param_metadata(func) -> dict:
                 param_type
             ) not in (list, dict):
                 metadata[param_name] = ParamMetadata(
-                    kind="body", required=True, param_type=param_type
+                    kind=ParameterKind.BODY, required=True, param_type=param_type
                 )
             else:
                 # Simple type with no marker - could be path or query, determined at runtime
                 metadata[param_name] = ParamMetadata(
-                    kind="auto", name=param_name, required=False, param_type=param_type
+                    kind=ParameterKind.AUTO,
+                    name=param_name,
+                    required=False,
+                    param_type=param_type,
                 )
         else:
             # Has a default value but no marker - treat as query param
             metadata[param_name] = ParamMetadata(
-                kind="query",
+                kind=ParameterKind.QUERY,
                 name=param_name,
                 required=False,
                 default=default,

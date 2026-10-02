@@ -1,7 +1,7 @@
 import inspect
 from typing import Any, Dict, get_type_hints
 
-from mitsuki.core.enums import ParameterKind
+from mitsuki.core.enums import MediaType, ParameterKind
 from mitsuki.openapi.schemas import type_to_schema
 from mitsuki.web.params import extract_param_metadata
 
@@ -111,7 +111,7 @@ def extract_operation(method, route_meta, controller_name: str) -> Dict[str, Any
         operation["requestBody"] = {
             "required": True,
             "content": {
-                route_meta.consumes or "application/json": {
+                route_meta.consumes or MediaType.APPLICATION_JSON.value: {
                     "schema": type_to_schema(consumes_type)
                 }
             },
@@ -130,7 +130,9 @@ def extract_operation(method, route_meta, controller_name: str) -> Dict[str, Any
     operation["responses"]["200"] = {
         "description": "Successful response",
         "content": {
-            route_meta.produces or "application/json": {"schema": response_schema}
+            route_meta.produces or MediaType.APPLICATION_JSON.value: {
+                "schema": response_schema
+            }
         },
     }
 
@@ -138,7 +140,7 @@ def extract_operation(method, route_meta, controller_name: str) -> Dict[str, Any
     operation["responses"]["400"] = {
         "description": "Bad request",
         "content": {
-            "application/json": {
+            MediaType.APPLICATION_JSON.value: {
                 "schema": {
                     "type": "object",
                     "properties": {"error": {"type": "string"}},
@@ -150,7 +152,7 @@ def extract_operation(method, route_meta, controller_name: str) -> Dict[str, Any
     operation["responses"]["500"] = {
         "description": "Internal server error",
         "content": {
-            "application/json": {
+            MediaType.APPLICATION_JSON.value: {
                 "schema": {
                     "type": "object",
                     "properties": {"error": {"type": "string"}},
@@ -211,6 +213,13 @@ def _infer_response_type(method):
     return None
 
 
+_PARAM_KIND_LOCATION = {
+    ParameterKind.PATH: "path",
+    ParameterKind.QUERY: "query",
+    ParameterKind.HEADER: "header",
+}
+
+
 def _param_to_openapi(param_name: str, metadata) -> Dict[str, Any]:
     """
     Convert ParamMetadata to OpenAPI parameter.
@@ -222,14 +231,7 @@ def _param_to_openapi(param_name: str, metadata) -> Dict[str, Any]:
     Returns:
         OpenAPI parameter dictionary or None if not applicable
     """
-    # Map ParameterKind to OpenAPI 'in' location
-    kind_to_location = {
-        ParameterKind.PATH: "path",
-        ParameterKind.QUERY: "query",
-        ParameterKind.HEADER: "header",
-    }
-
-    location = kind_to_location.get(metadata.kind)
+    location = _PARAM_KIND_LOCATION.get(metadata.kind)
     if not location:
         return None
 
@@ -288,7 +290,7 @@ def extract_paths(controller_cls, base_path: str) -> Dict[str, Dict]:
             paths[full_path] = {}
 
         # Extract operation
-        http_method = route_meta.method.lower()
+        http_method = route_meta.method.value.lower()
         operation = extract_operation(method, route_meta, controller_name)
 
         paths[full_path][http_method] = operation

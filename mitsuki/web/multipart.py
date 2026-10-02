@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple
 
 from python_multipart.multipart import parse_options_header
 
+from mitsuki.core.enums import MediaType
 from mitsuki.exceptions import (
     FileTooLargeException,
     MultipartParseException,
@@ -68,9 +69,9 @@ async def parse_multipart(
 
     # Parse content type to get boundary
     content_type_value, options = parse_options_header(content_type)
-    if content_type_value != b"multipart/form-data":
+    if content_type_value != MediaType.MULTIPART_FORM_DATA.encode():
         raise MultipartParseException(
-            f"Expected multipart/form-data, got {content_type_value}"
+            f"Expected {MediaType.MULTIPART_FORM_DATA}, got {content_type_value}"
         )
 
     boundary = options.get(b"boundary")

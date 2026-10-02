@@ -3,7 +3,7 @@ from typing import Any, Callable, List, Optional, Union
 import msgspec
 from starlette.requests import Request
 
-from mitsuki.core.enums import ParameterKind
+from mitsuki.core.enums import MediaType, ParameterKind
 from mitsuki.exceptions import (
     FileTooLargeException,
     InvalidFileTypeException,
@@ -152,7 +152,9 @@ class RequestLimits(msgspec.Struct):
 def _is_json_content_type(content_type: str) -> bool:
     """Accept application/json and its structured suffixes (e.g. +json)."""
     media_type = content_type.split(";", 1)[0].strip().lower()
-    return media_type.startswith("application/json") or media_type.endswith("+json")
+    return media_type.startswith(MediaType.APPLICATION_JSON) or media_type.endswith(
+        "+json"
+    )
 
 
 class BindingPlan:
@@ -180,7 +182,8 @@ class BindingPlan:
         content_type = request.headers.get("content-type", "")
         if body and content_type and not _is_json_content_type(content_type):
             raise RequestValidationException(
-                f"Unsupported Content-Type: {content_type}. Expected application/json"
+                f"Unsupported Content-Type: {content_type}. "
+                f"Expected {MediaType.APPLICATION_JSON}"
             )
 
         return body
@@ -188,8 +191,10 @@ class BindingPlan:
     async def _read_form(self, request: Request):
         """Parse the multipart body, enforcing max_request_size."""
         content_type = request.headers.get("content-type", "")
-        if not content_type.startswith("multipart/form-data"):
-            raise RequestValidationException("Expected multipart/form-data")
+        if not content_type.startswith(MediaType.MULTIPART_FORM_DATA):
+            raise RequestValidationException(
+                f"Expected {MediaType.MULTIPART_FORM_DATA}"
+            )
 
         body = await self._read_capped(request, self.limits.max_request_size)
         return await parse_multipart(

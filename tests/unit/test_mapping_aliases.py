@@ -4,6 +4,9 @@ Tests for mapping decorator aliases (@Get, @Post, etc.).
 
 from dataclasses import dataclass
 
+import pytest
+
+from mitsuki.core.enums import HttpMethod
 from mitsuki.web.mappings import (
     Consumes,
     Delete,
@@ -17,6 +20,8 @@ from mitsuki.web.mappings import (
     Produces,
     Put,
     PutMapping,
+    RequestMapping,
+    RouteMetadata,
 )
 
 
@@ -101,6 +106,77 @@ class TestAliasUsage:
         assert hasattr(patch_user, "__mitsuki_route__")
         assert patch_user.__mitsuki_route__.method == "PATCH"
         assert patch_user.__mitsuki_route__.path == "/users/{id}"
+
+
+class TestRouteMethodIsTyped:
+    """RouteMetadata.method holds an HttpMethod, not a bare string."""
+
+    def test_get_stores_http_method_get(self):
+        @Get("/users")
+        async def get_users():
+            return []
+
+        assert get_users.__mitsuki_route__.method is HttpMethod.GET
+
+    def test_post_stores_http_method_post(self):
+        @Post("/users")
+        async def create_user(data):
+            return data
+
+        assert create_user.__mitsuki_route__.method is HttpMethod.POST
+
+    def test_default_method_of_request_mapping_is_get(self):
+        @RequestMapping("/users")
+        async def users():
+            return []
+
+        assert users.__mitsuki_route__.method is HttpMethod.GET
+
+    def test_method_accepts_an_enum_member(self):
+        @RequestMapping("/users", method=HttpMethod.DELETE)
+        async def users():
+            return []
+
+        assert users.__mitsuki_route__.method is HttpMethod.DELETE
+
+    @pytest.mark.parametrize("spelling", ["delete", "DELETE", "Delete"])
+    def test_method_accepts_a_string_in_any_case(self, spelling):
+        @RequestMapping("/users", method=spelling)
+        async def users():
+            return []
+
+        assert users.__mitsuki_route__.method is HttpMethod.DELETE
+
+    def test_unknown_method_is_rejected_at_decoration_time(self):
+        with pytest.raises(ValueError, match="Invalid HttpMethod: 'FETCH'"):
+
+            @RequestMapping("/users", method="FETCH")
+            async def users():
+                return []
+
+    def test_direct_construction_normalizes_a_method_string(self):
+        route = RouteMetadata(method="patch", path="/users")
+
+        assert route.method is HttpMethod.PATCH
+
+    def test_direct_construction_rejects_an_unknown_method(self):
+        with pytest.raises(ValueError, match="Invalid HttpMethod: 'FETCH'"):
+            RouteMetadata(method="FETCH", path="/users")
+
+    def test_starlette_receives_a_plain_method_string(self):
+        from starlette.routing import Route
+
+        @Get("/users")
+        async def get_users():
+            return []
+
+        route = Route(
+            path="/users",
+            endpoint=get_users,
+            methods=[get_users.__mitsuki_route__.method],
+        )
+
+        assert route.methods == {"GET", "HEAD"}
 
 
 class TestAliasWithParameters:

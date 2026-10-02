@@ -82,7 +82,7 @@ async def initialize_database():
         return None
 
     # Get adapter type
-    adapter_type = config.get("database.adapter")
+    adapter_type = DatabaseAdapterEnum.from_string(config.get("database.adapter"))
 
     # Create adapter
     if adapter_type == DatabaseAdapterEnum.SQLALCHEMY:

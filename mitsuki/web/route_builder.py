@@ -8,6 +8,7 @@ from starlette.responses import Response as StarletteResponse
 from starlette.routing import Route
 
 from mitsuki.core.container import get_container
+from mitsuki.core.enums import MediaType, ParameterKind
 from mitsuki.exceptions import (
     FileTooLargeException,
     InvalidContentTypeException,
@@ -21,7 +22,7 @@ from mitsuki.web.response_processor import ResponseProcessor
 from mitsuki.web.serialization import serialize_json
 
 _starlette_init_headers = StarletteResponse.init_headers
-_JSON_CONTENT_TYPE_HEADER = (b"content-type", b"application/json")
+_JSON_CONTENT_TYPE_HEADER = (b"content-type", MediaType.APPLICATION_JSON.value.encode())
 
 
 def _fast_init_headers(self, headers: Optional[dict] = None) -> None:
@@ -33,7 +34,7 @@ def _fast_init_headers(self, headers: Optional[dict] = None) -> None:
     and set creations that are unnecessary in such a case. For any other case,
     it falls back to the original Starlette method.
     """
-    if not headers and self.media_type == "application/json":
+    if not headers and self.media_type == MediaType.APPLICATION_JSON:
         content_length = str(len(self.body))
         self.raw_headers = [
             _JSON_CONTENT_TYPE_HEADER,
@@ -80,8 +81,11 @@ class RouteBuilder:
                     full_path = self._combine_paths(base_path, route_meta.path)
                     param_metadata = extract_param_metadata(method)
                     for var in re.findall(r"{(\w+)", full_path):
-                        if var in param_metadata and param_metadata[var].kind == "body":
-                            param_metadata[var].kind = "path"
+                        if (
+                            var in param_metadata
+                            and param_metadata[var].kind == ParameterKind.BODY
+                        ):
+                            param_metadata[var].kind = ParameterKind.PATH
                     endpoint = self._create_endpoint(method, param_metadata, route_meta)
 
                     # Register route
@@ -154,17 +158,19 @@ class RouteBuilder:
                     if "content-type" not in headers and "Content-Type" not in headers:
                         if body is None:
                             content = b""
-                            headers["content-type"] = "application/json"
+                            headers["content-type"] = MediaType.APPLICATION_JSON
                         elif isinstance(body, bytes):
                             content = body
-                            headers["content-type"] = "application/octet-stream"
+                            headers["content-type"] = MediaType.APPLICATION_OCTET_STREAM
                         elif isinstance(body, str):
                             content = body.encode("utf-8")
-                            headers["content-type"] = "text/plain; charset=utf-8"
+                            headers["content-type"] = (
+                                f"{MediaType.TEXT_PLAIN}; charset=utf-8"
+                            )
                         else:
                             # dict, list, or other JSON-serializable types
                             content = serialize_json(body)
-                            headers["content-type"] = "application/json"
+                            headers["content-type"] = MediaType.APPLICATION_JSON
                     else:
                         # User set custom Content-Type, respect it and serialize accordingly
                         if isinstance(body, bytes):
@@ -189,7 +195,7 @@ class RouteBuilder:
                     return StarletteResponse(
                         content=content,
                         status_code=200,
-                        media_type="application/json",
+                        media_type=MediaType.APPLICATION_JSON,
                     )
 
             except (
@@ -203,7 +209,7 @@ class RouteBuilder:
                 return StarletteResponse(
                     content=content,
                     status_code=400,
-                    headers={"content-type": "application/json"},
+                    headers={"content-type": MediaType.APPLICATION_JSON},
                 )
             except Exception as e:
                 if self.debug_mode:
@@ -214,7 +220,7 @@ class RouteBuilder:
                     return StarletteResponse(
                         content=content,
                         status_code=500,
-                        headers={"content-type": "application/json"},
+                        headers={"content-type": MediaType.APPLICATION_JSON},
                     )
                 else:
                     logging.error(f"Internal server error: {e}")
@@ -222,7 +228,7 @@ class RouteBuilder:
                     return StarletteResponse(
                         content=content,
                         status_code=500,
-                        headers={"content-type": "application/json"},
+                        headers={"content-type": MediaType.APPLICATION_JSON},
                     )
 
         return endpoint

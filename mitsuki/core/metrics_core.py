@@ -7,6 +7,7 @@ from itertools import accumulate
 from typing import Dict, List, Optional, Tuple
 
 from mitsuki.core.decorators import Component
+from mitsuki.core.enums import MetricType
 
 _METRIC_NAME = re.compile(r"[a-zA-Z_:][a-zA-Z0-9_:]*")
 _LABEL_NAME = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
@@ -292,9 +293,9 @@ class MetricsStorage:
         validate_metric_name(name)
 
         for kind, metrics in (
-            ("counter", self.counters),
-            ("gauge", self.gauges),
-            ("histogram", self.histograms),
+            (MetricType.COUNTER, self.counters),
+            (MetricType.GAUGE, self.gauges),
+            (MetricType.HISTOGRAM, self.histograms),
         ):
             if name in metrics:
                 raise ValueError(f"Metric {name!r} is already registered as a {kind}")

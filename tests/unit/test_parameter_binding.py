@@ -859,3 +859,33 @@ class TestBindingPlanKinds:
                 {"value": ParamMetadata(kind="bogus", name="value", param_type=str)},
                 None,
             )
+
+
+class TestParamKindIsTyped:
+    """ParamMetadata.kind carries a ParameterKind member, not a bare string."""
+
+    def test_kind_is_a_parameter_kind_member(self):
+        async def handler(value: int = QueryParam()):
+            pass
+
+        kind = extract_param_metadata(handler)["value"].kind
+
+        assert isinstance(kind, ParameterKind)
+        assert kind is ParameterKind.QUERY
+
+    def test_path_kind_promoted_by_the_route_path(self):
+        """A body-looking parameter named in the path is retyped to PATH."""
+
+        @RestController("/api")
+        class C:
+            @GetMapping("/items/{item_id}")
+            async def get(self, item_id: uuid.UUID) -> dict:
+                return {"item_id": str(item_id)}
+
+        assert extract_param_metadata(C.get)["item_id"].kind is ParameterKind.BODY
+
+        item_id = uuid.uuid4()
+        response = build_client(C).get(f"/api/items/{item_id}")
+
+        assert response.status_code == 200
+        assert response.json() == {"item_id": str(item_id)}

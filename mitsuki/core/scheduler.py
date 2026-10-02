@@ -8,6 +8,7 @@ from croniter import croniter
 
 from mitsuki.core.container import get_container
 from mitsuki.core.decorators import Component
+from mitsuki.core.enums import ScheduleType, TaskStatus
 from mitsuki.core.logging import get_logger
 from mitsuki.core.metrics_core import MetricsStorage
 
@@ -36,7 +37,7 @@ class TaskStatistics:
         self.last_execution: Optional[datetime] = None
         self.last_duration_ms: Optional[float] = None
         self.total_duration_ms: float = 0.0
-        self.status = "pending"
+        self.status = TaskStatus.PENDING
 
     @property
     def average_duration_ms(self) -> Optional[float]:
@@ -51,20 +52,20 @@ class TaskStatistics:
         interval = None
 
         if self.config.get("fixed_rate"):
-            schedule_type = "fixed_rate"
+            schedule_type = ScheduleType.FIXED_RATE
             interval = self.config["fixed_rate"]
         elif self.config.get("fixed_delay"):
-            schedule_type = "fixed_delay"
+            schedule_type = ScheduleType.FIXED_DELAY
             interval = self.config["fixed_delay"]
         elif self.config.get("cron"):
-            schedule_type = "cron"
+            schedule_type = ScheduleType.CRON
             interval = self.config["cron"]
 
         return {
             "name": self.name,
-            "type": schedule_type,
+            "type": schedule_type.value if schedule_type else None,
             "interval": interval,
-            "status": self.status,
+            "status": self.status.value,
             "executions": self.executions,
             "failures": self.failures,
             "last_execution": self.last_execution.isoformat()
@@ -209,7 +210,7 @@ class TaskScheduler:
             logger.info(
                 f"Starting scheduled task {method_name} (every {interval_ms}ms)"
             )
-            stats.status = "running"
+            stats.status = TaskStatus.RUNNING
 
             while self.running:
                 iteration_start_time = asyncio.get_event_loop().time()
@@ -232,7 +233,7 @@ class TaskScheduler:
                     await asyncio.sleep(remaining_time)
                 # else: next execution starts immediately (task took longer than interval)
 
-            stats.status = "stopped"
+            stats.status = TaskStatus.STOPPED
 
         # Store the task creator, don't start yet
         self.tasks.append(task_loop)
@@ -262,7 +263,7 @@ class TaskScheduler:
             logger.info(
                 f"Starting scheduled task {method_name} ({delay_ms}ms after completion)"
             )
-            stats.status = "running"
+            stats.status = TaskStatus.RUNNING
 
             while self.running:
                 start_time = asyncio.get_event_loop().time()
@@ -277,7 +278,7 @@ class TaskScheduler:
                 # Wait after execution completes (fixed delay)
                 await asyncio.sleep(delay_sec)
 
-            stats.status = "stopped"
+            stats.status = TaskStatus.STOPPED
 
         # Store the task creator, don't start yet
         self.tasks.append(task_loop)
@@ -305,14 +306,14 @@ class TaskScheduler:
                 cron = croniter(cron_expr, base_time)
             except Exception as e:
                 logger.error(f"Invalid cron expression '{cron_expr}': {e}")
-                stats.status = "error"
+                stats.status = TaskStatus.ERROR
                 return
 
             tz_info = f" ({timezone_str})" if timezone_str else ""
             logger.info(
                 f"Starting scheduled task {method_name} (cron: {cron_expr}{tz_info})"
             )
-            stats.status = "running"
+            stats.status = TaskStatus.RUNNING
 
             while self.running:
                 try:
@@ -346,7 +347,7 @@ class TaskScheduler:
                     # On error, wait a bit before next iteration
                     await asyncio.sleep(1)
 
-            stats.status = "stopped"
+            stats.status = TaskStatus.STOPPED
 
         # Store the task creator, don't start yet
         self.tasks.append(task_loop)
@@ -403,7 +404,7 @@ class TaskScheduler:
             "tasks": [stats.to_dict() for stats in self._statistics.values()],
             "total_tasks": len(self._statistics),
             "running_tasks": sum(
-                1 for s in self._statistics.values() if s.status == "running"
+                1 for s in self._statistics.values() if s.status == TaskStatus.RUNNING
             ),
         }
 

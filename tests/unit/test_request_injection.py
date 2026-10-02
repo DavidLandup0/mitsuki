@@ -3,6 +3,7 @@ from starlette.requests import Request
 
 from mitsuki import GetMapping, PostMapping, QueryParam, RestController
 from mitsuki.core.container import DIContainer, set_container
+from mitsuki.core.enums import ParameterKind
 from mitsuki.web.params import extract_param_metadata
 
 
@@ -28,7 +29,7 @@ class TestRequestInjection:
 
         metadata = extract_param_metadata(TestController.test_handler)
         assert "request" in metadata
-        assert metadata["request"].kind == "request"
+        assert metadata["request"].kind == ParameterKind.REQUEST
         assert metadata["request"].param_type is Request
 
     def test_request_injection_with_other_params(self):
@@ -50,7 +51,7 @@ class TestRequestInjection:
         assert "request" in metadata
         assert "user_id" in metadata
         assert "page" in metadata
-        assert metadata["request"].kind == "request"
+        assert metadata["request"].kind == ParameterKind.REQUEST
         assert metadata["user_id"].kind == "auto"
         assert metadata["page"].kind == "query"
 
@@ -66,7 +67,7 @@ class TestRequestInjection:
         metadata = extract_param_metadata(TestController.create_user)
         assert "request" in metadata
         assert "data" in metadata
-        assert metadata["request"].kind == "request"
+        assert metadata["request"].kind == ParameterKind.REQUEST
         assert metadata["data"].kind == "body"
 
     def test_handler_without_request(self):

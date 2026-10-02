@@ -93,12 +93,16 @@ def convert_to_async_url(connection_string: str) -> str:
     Returns:
         Async-compatible database URL (e.g., postgresql+asyncpg://...)
     """
-    if connection_string.startswith("postgresql://"):
-        return connection_string.replace("postgresql://", "postgresql+asyncpg://", 1)
-    elif connection_string.startswith("mysql://"):
-        return connection_string.replace("mysql://", "mysql+aiomysql://", 1)
-    elif connection_string.startswith("sqlite://"):
-        return connection_string.replace("sqlite://", "sqlite+aiosqlite://", 1)
+    postgres_sync = f"{DatabaseDialect.POSTGRESQL.value}://"
+    mysql_sync = f"{DatabaseDialect.MYSQL.value}://"
+    sqlite_sync = f"{DatabaseDialect.SQLITE.value}://"
+
+    if connection_string.startswith(postgres_sync):
+        return connection_string.replace(postgres_sync, "postgresql+asyncpg://", 1)
+    elif connection_string.startswith(mysql_sync):
+        return connection_string.replace(mysql_sync, "mysql+aiomysql://", 1)
+    elif connection_string.startswith(sqlite_sync):
+        return connection_string.replace(sqlite_sync, "sqlite+aiosqlite://", 1)
     return connection_string
 
 
@@ -138,12 +142,12 @@ class SQLAlchemyAdapter(DatabaseAdapter):
         # Convert sync connection strings to async
         connection_string = convert_to_async_url(connection_string)
 
-        if connection_string.startswith("sqlite"):
+        if connection_string.startswith(DatabaseDialect.SQLITE.value):
             enable_pooling = False
 
         # Disable pooling for SQLite (check again for already-async connection strings)
         # BUT: :memory: databases need StaticPool to persist across queries
-        if "sqlite" in connection_string:
+        if DatabaseDialect.SQLITE.value in connection_string:
             if ":memory:" in connection_string:
                 # Use StaticPool for :memory: databases (single persistent connection)
                 self.engine = create_async_engine(
@@ -517,20 +521,20 @@ class SQLAlchemyAdapter(DatabaseAdapter):
         # Determine operation type and extract components
         match = re.match(select_pattern, query_string, re.IGNORECASE)
         if match:
-            operation = "SELECT"
+            operation = SQLOperation.SELECT
             select_alias = match.group(2)
             entity_name = match.group(3)
             alias = match.group(4)
         else:
             match = re.match(update_pattern, query_string, re.IGNORECASE)
             if match:
-                operation = "UPDATE"
+                operation = SQLOperation.UPDATE
                 entity_name = match.group(2)
                 alias = match.group(3)
             else:
                 match = re.match(delete_pattern, query_string, re.IGNORECASE)
                 if match:
-                    operation = "DELETE"
+                    operation = SQLOperation.DELETE
                     entity_name = match.group(2)
                     alias = match.group(3)
                 else:

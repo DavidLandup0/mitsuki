@@ -193,7 +193,7 @@ class ApplicationContext:
         logger.info(f"Mitsuki application starting on http://{host}:{port}")
 
         log_level_str = config.get("logging.level").lower()
-        server_type = config.get("server.type").lower()
+        server_type = ServerType.from_string(config.get("server.type"))
         workers = config.get("server.workers")
         access_log = config.get_bool("server.access_log")
 

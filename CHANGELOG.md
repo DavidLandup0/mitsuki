@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## 0.2.2
 
+### Changes
+- **Consolidated enum usage and replaced bare strings with enums.**
+
 ### Fixes
 - **During OpenAPI generation, `use_refs=False` inlines nested schemas.** `Optional`, union, `list` and `dict` members emitted a `$ref` into the schema registry instead of expanding in place.
 - **`mitsuki init` URLs used to be sqlite only.** `sqlite`, `postgresql` and `mysql` all produced SQLite configuration, and now produce separate URLs properly.

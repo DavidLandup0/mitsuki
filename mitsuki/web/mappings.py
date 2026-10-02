@@ -1,6 +1,8 @@
 import asyncio
 from functools import wraps
-from typing import Callable, List, Optional, Type
+from typing import Callable, List, Optional, Type, Union
+
+from mitsuki.core.enums import HttpMethod, MediaType
 
 
 class RouteMetadata:
@@ -8,7 +10,7 @@ class RouteMetadata:
 
     def __init__(
         self,
-        method: str,
+        method: Union[HttpMethod, str],
         path: str,
         produces: Optional[str] = None,
         consumes: Optional[str] = None,
@@ -16,7 +18,7 @@ class RouteMetadata:
         exclude_fields: Optional[List[str]] = None,
         consumes_type: Optional[Type] = None,
     ):
-        self.method = method
+        self.method = HttpMethod.from_string(method)
         self.path = path
         self.produces = produces
         self.consumes = consumes
@@ -27,7 +29,7 @@ class RouteMetadata:
 
 def RequestMapping(
     path: str = "",
-    method: str = "GET",
+    method: Union[HttpMethod, str] = HttpMethod.GET,
     produces: Optional[str] = None,
     consumes: Optional[str] = None,
     return_type: Optional[Type] = None,
@@ -40,7 +42,7 @@ def RequestMapping(
 
     Args:
         path: URL path for this route (relative to controller base path)
-        method: HTTP method (GET, POST, PUT, DELETE, PATCH, etc.)
+        method: HTTP method as HttpMethod (or its string name, case-insensitive)
         produces: Media type this endpoint produces (e.g., "application/json")
         consumes: Media type this endpoint consumes (e.g., "application/json")
         return_type: Expected return type for validation/conversion (alias for produces_type)
@@ -70,7 +72,7 @@ def RequestMapping(
 
         # Store route metadata
         wrapper.__mitsuki_route__ = RouteMetadata(
-            method=method.upper(),
+            method=resolved_method,
             path=path,
             produces=produces,
             consumes=consumes,
@@ -81,12 +83,14 @@ def RequestMapping(
 
         return wrapper
 
+    resolved_method = HttpMethod.from_string(method)
+
     return decorator
 
 
 def GetMapping(
     path: str = "",
-    produces: Optional[str] = "application/json",
+    produces: Optional[str] = MediaType.APPLICATION_JSON,
     return_type: Optional[Type] = None,
     produces_type: Optional[Type] = None,
     exclude_fields: Optional[List[str]] = None,
@@ -103,7 +107,7 @@ def GetMapping(
     """
     return RequestMapping(
         path=path,
-        method="GET",
+        method=HttpMethod.GET,
         produces=produces,
         return_type=return_type,
         produces_type=produces_type,
@@ -113,8 +117,8 @@ def GetMapping(
 
 def PostMapping(
     path: str = "",
-    produces: Optional[str] = "application/json",
-    consumes: Optional[str] = "application/json",
+    produces: Optional[str] = MediaType.APPLICATION_JSON,
+    consumes: Optional[str] = MediaType.APPLICATION_JSON,
     return_type: Optional[Type] = None,
     produces_type: Optional[Type] = None,
     consumes_type: Optional[Type] = None,
@@ -134,7 +138,7 @@ def PostMapping(
     """
     return RequestMapping(
         path=path,
-        method="POST",
+        method=HttpMethod.POST,
         produces=produces,
         consumes=consumes,
         return_type=return_type,
@@ -146,8 +150,8 @@ def PostMapping(
 
 def PutMapping(
     path: str = "",
-    produces: Optional[str] = "application/json",
-    consumes: Optional[str] = "application/json",
+    produces: Optional[str] = MediaType.APPLICATION_JSON,
+    consumes: Optional[str] = MediaType.APPLICATION_JSON,
     return_type: Optional[Type] = None,
     produces_type: Optional[Type] = None,
     consumes_type: Optional[Type] = None,
@@ -167,7 +171,7 @@ def PutMapping(
     """
     return RequestMapping(
         path=path,
-        method="PUT",
+        method=HttpMethod.PUT,
         produces=produces,
         consumes=consumes,
         return_type=return_type,
@@ -179,7 +183,7 @@ def PutMapping(
 
 def DeleteMapping(
     path: str = "",
-    produces: Optional[str] = "application/json",
+    produces: Optional[str] = MediaType.APPLICATION_JSON,
     return_type: Optional[Type] = None,
     produces_type: Optional[Type] = None,
     exclude_fields: Optional[List[str]] = None,
@@ -196,7 +200,7 @@ def DeleteMapping(
     """
     return RequestMapping(
         path=path,
-        method="DELETE",
+        method=HttpMethod.DELETE,
         produces=produces,
         return_type=return_type,
         produces_type=produces_type,
@@ -206,8 +210,8 @@ def DeleteMapping(
 
 def PatchMapping(
     path: str = "",
-    produces: Optional[str] = "application/json",
-    consumes: Optional[str] = "application/json",
+    produces: Optional[str] = MediaType.APPLICATION_JSON,
+    consumes: Optional[str] = MediaType.APPLICATION_JSON,
     return_type: Optional[Type] = None,
     produces_type: Optional[Type] = None,
     consumes_type: Optional[Type] = None,
@@ -227,7 +231,7 @@ def PatchMapping(
     """
     return RequestMapping(
         path=path,
-        method="PATCH",
+        method=HttpMethod.PATCH,
         produces=produces,
         consumes=consumes,
         return_type=return_type,

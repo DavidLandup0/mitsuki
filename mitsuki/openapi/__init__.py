@@ -1,6 +1,6 @@
-from enum import Enum
 from typing import TYPE_CHECKING
 
+from mitsuki.core.enums import UIType
 from mitsuki.openapi.decorators import OpenAPIOperation, OpenAPISecurity, OpenAPITag
 from mitsuki.openapi.generator import generate_openapi_spec
 from mitsuki.openapi.ui import (
@@ -12,14 +12,6 @@ from mitsuki.openapi.ui import (
 
 if TYPE_CHECKING:
     from mitsuki.core.application import ApplicationContext
-
-
-class UIType(str, Enum):
-    """OpenAPI documentation UI types."""
-
-    SWAGGER = "swagger"
-    REDOC = "redoc"
-    SCALAR = "scalar"
 
 
 __all__ = [

@@ -10,6 +10,7 @@ from typing import Callable, Dict, Optional, Set, Type
 from starlette.routing import Route
 
 from mitsuki.core.decorators import Component, _instrumentable_components
+from mitsuki.core.enums import ASGIMessageType, ASGIScopeType
 from mitsuki.core.metrics_core import (
     MetricsStorage,
     validate_label_names,
@@ -354,7 +355,7 @@ class InstrumentationMiddleware:
         self.excluded = excluded
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or not self.registry.enabled:
+        if scope["type"] != ASGIScopeType.HTTP or not self.registry.enabled:
             await self.app(scope, receive, send)
             return
 
@@ -364,7 +365,7 @@ class InstrumentationMiddleware:
 
         async def send_wrapper(message):
             nonlocal status_code
-            if message["type"] == "http.response.start":
+            if message["type"] == ASGIMessageType.HTTP_RESPONSE_START:
                 status_code = message["status"]
             await send(message)
 

@@ -4,6 +4,7 @@ from typing import Iterable, List, Optional, Union
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
+from mitsuki.core.enums import ASGIScopeType
 from mitsuki.core.instrumentation import Instrumented
 from mitsuki.core.logging import get_logger
 from mitsuki.core.metrics_core import MetricsStorage
@@ -91,7 +92,10 @@ class MetricsAccessMiddleware:
         self.allowed_networks = allowed_networks
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope["path"].rstrip("/") not in self.paths:
+        if (
+            scope["type"] != ASGIScopeType.HTTP
+            or scope["path"].rstrip("/") not in self.paths
+        ):
             await self.app(scope, receive, send)
             return
 

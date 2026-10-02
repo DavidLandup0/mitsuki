@@ -1,17 +1,19 @@
 import logging
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
+
+from mitsuki.core.enums import LogLevel
 
 _mitsuki_logger: Optional[logging.Logger] = None
 
 
 class ColoredFormatter(logging.Formatter):
     COLORS = {
-        "DEBUG": "\033[36m",  # Cyan
-        "INFO": "\033[32m",  # Green
-        "WARNING": "\033[33m",  # Yellow
-        "ERROR": "\033[31m",  # Red
-        "CRITICAL": "\033[35m",  # Magenta
+        LogLevel.DEBUG: "\033[36m",  # Cyan
+        LogLevel.INFO: "\033[32m",  # Green
+        LogLevel.WARNING: "\033[33m",  # Yellow
+        LogLevel.ERROR: "\033[31m",  # Red
+        LogLevel.CRITICAL: "\033[35m",  # Magenta
     }
     RESET = "\033[0m"
     BOLD = "\033[1m"
@@ -38,7 +40,7 @@ def get_logger() -> logging.Logger:
 
 
 def configure_logging(
-    level: str = "INFO",
+    level: Union[LogLevel, str] = LogLevel.INFO,
     format: str = "%(levelname)s %(message)s",
     sqlalchemy: bool = False,
     custom_formatter: Optional[logging.Formatter] = None,
@@ -48,12 +50,14 @@ def configure_logging(
     Configure logging for the Mitsuki framework.
 
     Args:
-        level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        level: Log level as LogLevel (or its string name, case-insensitive)
         format: Log format string
         sqlalchemy: Enable SQLAlchemy query logging
         custom_formatter: Custom formatter (overrides default ColoredFormatter)
         custom_handlers: Custom handlers (overrides default StreamHandler)
     """
+    level = LogLevel.from_string(level)
+
     # Use custom formatter if provided, otherwise use ColoredFormatter
     if custom_formatter:
         formatter = custom_formatter
@@ -70,14 +74,14 @@ def configure_logging(
 
     # Configure root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, level.upper()))
+    root_logger.setLevel(level.numeric)
     root_logger.handlers.clear()
     for handler in handlers:
         root_logger.addHandler(handler)
 
     # Configure Mitsuki logger
     mitsuki_logger = get_logger()
-    mitsuki_logger.setLevel(getattr(logging, level.upper()))
+    mitsuki_logger.setLevel(level.numeric)
 
     # Configure uvicorn loggers to use same format
     for logger_name in ["uvicorn.access", "uvicorn.error", "uvicorn"]:
@@ -102,18 +106,21 @@ def configure_logging(
 
 
 def get_granian_log_config(
-    level: str = "INFO", format: str = "%(levelname)s %(message)s"
+    level: Union[LogLevel, str] = LogLevel.INFO,
+    format: str = "%(levelname)s %(message)s",
 ) -> Dict[str, Any]:
     """
     Get logging configuration dict for Granian.
 
     Args:
-        level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        level: Log level as LogLevel (or its string name, case-insensitive)
         format: Log format string
 
     Returns:
         Dictionary configuration for Granian's log_dictconfig parameter
     """
+    level = LogLevel.from_string(level)
+
     return {
         "version": 1,
         "disable_existing_loggers": False,
@@ -133,17 +140,17 @@ def get_granian_log_config(
         "loggers": {
             "granian": {
                 "handlers": ["console"],
-                "level": level.upper(),
+                "level": level.value,
                 "propagate": False,
             },
             "granian.access": {
                 "handlers": ["console"],
-                "level": level.upper(),
+                "level": level.value,
                 "propagate": False,
             },
             "granian.error": {
                 "handlers": ["console"],
-                "level": level.upper(),
+                "level": level.value,
                 "propagate": False,
             },
         },
