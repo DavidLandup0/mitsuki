@@ -28,9 +28,8 @@ With the completion of the features below - we go into 0.2.x versions:
 With the completion of the features below - we go into 0.3.x versions:
 
 ### Major Features
-- Basic messaging/queue support
-- Global exception handling
-    - I.e. support for defining @ExceptionHandlers that handle all types of certain exceptions for centralization
+- Transaction support
+    - I.e. `@Transactional` on `@Service`/`@Repository` methods, wrapping the unit of work in a single database transaction
 
 ### Maintenance
 - Production-hardening on the core internals
@@ -40,12 +39,54 @@ With the completion of the features below - we go into 0.3.x versions:
 With the completion of the features below - we go into 0.4.x versions:
 
 ### Major Features
+- Entity relationships
+    - I.e. `@ManyToOne`, `@OneToMany`, `@OneToOne` and `@ManyToMany` associations between `@Entity` classes
+    - Eager and lazy loading modes
+
+## Before 0.5.0
+
+With the completion of the features below - we go into 0.5.x versions:
+
+### Major Features
+- Basic messaging/queue support
+
+## Before 0.6.0
+
+With the completion of the features below - we go into 0.6.x versions:
+
+### Major Features
+- Global exception handling
+    - I.e. support for defining @ExceptionHandlers that handle all types of certain exceptions for centralization
+
+## Before 0.7.0
+
+With the completion of the features below - we go into 0.7.x versions:
+
+### Major Features
+- Testing support
+    - I.e. a test application context, with overridable component registration for fakes and mocks
+
+### Documentation
+- Testing documentation
+
+## Before 0.8.0
+
+With the completion of the features below - we go into 0.8.x versions:
+
+### Major Features
 - Middleware API
 
-## Before 1.0.0
+## Before 0.9.0
+
+With the completion of the features below - we go into 0.9.x versions:
 
 ### Major Features
 - Auth/JWT support
+
+## Before 1.0.0
+
+### Maintenance
+- Public API review and stability freeze
 
 
 ## Overarching
