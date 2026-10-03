@@ -21,6 +21,16 @@
 </div>
 
 <div align="center">
+
+[![CI](https://github.com/DavidLandup0/mitsuki/actions/workflows/ci.yml/badge.svg)](https://github.com/DavidLandup0/mitsuki/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/mitsuki?color=F2A0BF&logo=python&logoColor=white)](https://pypi.org/project/mitsuki)
+[![Python](https://img.shields.io/pypi/pyversions/mitsuki?color=F2A0BF&logo=python&logoColor=white)](https://pypi.org/project/mitsuki)
+[![License](https://img.shields.io/badge/license-Apache--2.0-F2A0BF)](LICENSE.md)
+[![Docs](https://img.shields.io/badge/docs-F2A0BF)](https://davidlandup0.github.io/mitsuki/)
+
+</div>
+
+<div align="center">
 <a href="https://davidlandup0.github.io/mitsuki/">Documentation</a> |
 <a href="https://github.com/DavidLandup0/mitsuki/tree/main/docs">Docs on GitHub</a> |
 <a href="https://github.com/DavidLandup0/mitsuki/tree/main/examples">Examples</a> |
