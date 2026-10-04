@@ -124,11 +124,14 @@ async def _savepoint(
     state: _TransactionState, no_rollback_for: Tuple[Type, ...]
 ) -> AsyncIterator[None]:
     savepoint = await state.connection.begin_nested()
+    rollback_only = state.rollback_only
     try:
         yield
     except BaseException as error:
         if _rolls_back(error, no_rollback_for):
             await savepoint.rollback()
+            # Undoing the work inside the savepoint undoes any failure in it.
+            state.rollback_only = rollback_only
         else:
             await savepoint.commit()
         raise

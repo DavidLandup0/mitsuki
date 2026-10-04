@@ -202,6 +202,18 @@ class WalletService:
         except Boom:
             pass
 
+    @Transactional(propagation=Propagation.NESTED)
+    async def nested_open_through_joined_failure(self, owner: str):
+        await self.open_then_fail(owner)
+
+    @Transactional()
+    async def open_and_swallow_nested_joined_failure(self, first: str, second: str):
+        await self.open(first)
+        try:
+            await self.nested_open_through_joined_failure(second)
+        except Boom:
+            pass
+
     @Transactional()
     async def nested_open_then_outer_fail(self, owner: str):
         await self.nested_open(owner)
@@ -456,6 +468,14 @@ class TestNested:
         self, database, service, wallets
     ):
         await service.open_and_swallow_nested_failure("alice", "bob")
+
+        assert await owners(wallets) == ["alice"]
+
+    @pytest.mark.asyncio
+    async def test_savepoint_contains_a_failed_joined_block(
+        self, database, service, wallets
+    ):
+        await service.open_and_swallow_nested_joined_failure("alice", "bob")
 
         assert await owners(wallets) == ["alice"]
 
