@@ -89,7 +89,7 @@ from mitsuki.web.serialization import (
 )
 from mitsuki.web.upload import UploadFile
 
-__version__ = "0.2.2"
+__version__ = "0.3.0"
 __all__ = [
     # Core
     "Application",
