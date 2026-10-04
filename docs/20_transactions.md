@@ -11,7 +11,6 @@
 - [Class-Level and Repository Usage](#class-level-and-repository-usage)
 - [Custom Queries Inside a Transaction](#custom-queries-inside-a-transaction)
 - [Limitations](#limitations)
-- [Coming From Spring](#coming-from-spring)
 
 ## Overview
 
@@ -312,20 +311,3 @@ Do not call `conn.commit()` or `conn.rollback()` on this connection: that ends t
 - **One connection per transaction.** A transaction holds a pooled connection, and the database may hold locks, until it ends. Avoid slow work such as HTTP calls inside transactional methods: enough slow transactions running at once can exhaust the pool (`database.pool.size`).
 - **No concurrent database calls inside a transaction.** A connection runs one statement at a time. Repository calls made through `asyncio.gather` or `asyncio.create_task` inside a transaction raise `TransactionException`. Await them one after another instead. A `@Transactional` method run in a spawned task begins its own, independent transaction.
 - **SQLite.** An in-memory database (`sqlite:///:memory:`) has a single shared connection, so `REQUIRES_NEW` raises `TransactionException` there. File-based SQLite allows a single writer at a time: a `REQUIRES_NEW` transaction that writes after its outer transaction has written fails with `database is locked`.
-
-## Coming From Spring
-
-| Spring | Mitsuki |
-|---|---|
-| `@Transactional` | `@Transactional()` |
-| `TransactionTemplate` | `async with transaction():` |
-| `propagation = Propagation.REQUIRED / REQUIRES_NEW / NESTED` | `propagation=Propagation.REQUIRED / REQUIRES_NEW / NESTED` |
-| `SUPPORTS`, `MANDATORY`, `NOT_SUPPORTED`, `NEVER` | Not supported |
-| Rolls back on unchecked exceptions only | Rolls back on every exception |
-| `noRollbackFor` | `no_rollback_for` |
-| `rollbackFor` | Not needed: every exception already rolls back |
-| `isolation = Isolation.SERIALIZABLE` | `isolation=Isolation.SERIALIZABLE` |
-| `readOnly`, `timeout` | Not supported |
-| `UnexpectedRollbackException` | `UnexpectedRollbackException` |
-| Self-invocation (`this.method()`) bypasses the proxy | `self.method()` is transactional: the method itself is wrapped, not the object |
-| Transaction bound to the thread | Transaction bound to the asyncio task |
