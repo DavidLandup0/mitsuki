@@ -43,6 +43,12 @@ Example of creating scheduled tasks to run within your app.
 
 [View @Scheduled Example →](./scheduled/)
 
+### 4. Transactions (`/transactions`)
+
+A ledger API with transfers in one transaction (`@Transactional`), an audit log kept through rollbacks (`REQUIRES_NEW`) and batch transfers that skip failures (`NESTED`).
+
+[View Transactions Example →](./transactions/)
+
 ## Running the Examples
 
 Each example is self-contained with its own README. To run an example:

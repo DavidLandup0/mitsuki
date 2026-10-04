@@ -29,3 +29,9 @@ The `scheduled` example demonstrates how to run tasks at a specified interval. T
 The `instrumentation_demo` example shows Mitsuki's instrumentation and metrics with a single `@Instrumented` decorator: system, HTTP, component, scheduler and custom metrics, exported in Prometheus format and visualized in pre-configured Grafana dashboards. Run it with Docker Compose to bring up the app, Prometheus and Grafana together.
 
 [View on GitHub](https://github.com/DavidLandup0/mitsuki/tree/main/examples/instrumentation_demo)
+
+## Transactions
+
+The `transactions` example is a small ledger API: transfers between accounts run in one transaction with `@Transactional`, an audit log is written with `REQUIRES_NEW` so failed attempts are kept, and a batch of transfers uses `NESTED` savepoints to skip the ones that fail. It runs against PostgreSQL started with Docker Compose.
+
+[View on GitHub](https://github.com/DavidLandup0/mitsuki/tree/main/examples/transactions)

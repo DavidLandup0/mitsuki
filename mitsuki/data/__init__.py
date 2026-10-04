@@ -1,16 +1,17 @@
 from mitsuki.config.properties import get_config
 from mitsuki.core.enums import DatabaseAdapter as DatabaseAdapterEnum
-from mitsuki.data.adapters.base import DatabaseAdapter
+from mitsuki.data.adapters.base import (
+    DatabaseAdapter,
+    get_database_adapter,
+    set_database_adapter,
+)
 from mitsuki.data.adapters.sqlalchemy import SQLAlchemyAdapter, convert_to_async_url
 from mitsuki.data.entity import Entity, get_all_entities, get_entity_metadata, is_entity
 from mitsuki.data.query import ComparisonOperator, QueryCondition, QueryOperation
 from mitsuki.data.query import Query as QueryObject
 from mitsuki.data.query_decorators import Modifying, Query
-from mitsuki.data.repository import (
-    CrudRepository,
-    get_database_adapter,
-    set_database_adapter,
-)
+from mitsuki.data.repository import CrudRepository
+from mitsuki.data.transactions import Transactional, transaction
 from mitsuki.data.types import (
     UUID,
     Column,
@@ -150,6 +151,9 @@ __all__ = [
     "ComparisonOperator",
     "Query",
     "Modifying",
+    # Transactions
+    "Transactional",
+    "transaction",
     # Adapters
     "DatabaseAdapter",
     "SQLAlchemyAdapter",

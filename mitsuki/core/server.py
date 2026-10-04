@@ -19,7 +19,7 @@ from mitsuki.core.instrumentation import (
 from mitsuki.core.logging import get_granian_log_config
 from mitsuki.core.metrics import MetricsAccessMiddleware, parse_allowed_ips
 from mitsuki.core.scheduler import get_scheduler
-from mitsuki.data.repository import get_database_adapter
+from mitsuki.data.adapters.base import get_database_adapter
 from mitsuki.exceptions import DataException
 from mitsuki.web.parameter_binder import ParameterBinder
 from mitsuki.web.response_processor import ResponseProcessor

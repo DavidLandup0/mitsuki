@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy import MetaData
 
-import mitsuki.data.repository as repo_module
+import mitsuki.data.adapters.base as adapter_base
 from mitsuki.data import Entity, convert_to_async_url, get_sqlalchemy_metadata
 from mitsuki.data.adapters.sqlalchemy import SQLAlchemyAdapter
 from mitsuki.data.entity import (
@@ -31,11 +31,11 @@ from mitsuki.data.types import UUIDv7
 def preserve_entity_registry():
     """Preserve entity registry across tests that clear it."""
     saved_registry = get_all_entities()
-    saved_adapter = repo_module._database_adapter
+    saved_adapter = adapter_base._database_adapter
     yield
     _entity_registry.clear()
     _entity_registry.update(saved_registry)
-    repo_module._database_adapter = saved_adapter
+    adapter_base._database_adapter = saved_adapter
 
 
 class TestConvertToAsyncUrl:
@@ -197,7 +197,7 @@ class TestGetSQLAlchemyMetadata:
     def test_auto_initializes_without_adapter(self):
         """Test that function auto-initializes if no adapter set."""
         clear_entity_registry()
-        repo_module._database_adapter = None
+        adapter_base._database_adapter = None
 
         @Entity()
         @dataclass
@@ -210,7 +210,7 @@ class TestGetSQLAlchemyMetadata:
         assert len(metadata.tables) == 1
 
         clear_entity_registry()
-        repo_module._database_adapter = None
+        adapter_base._database_adapter = None
 
 
 class TestAlembicProfileResolution:
@@ -381,7 +381,7 @@ class TestAlembicMetadataGeneration:
     def test_get_sqlalchemy_metadata_without_app_initialization(self):
         """Test that get_sqlalchemy_metadata() works without running the app."""
         clear_entity_registry()
-        repo_module._database_adapter = None
+        adapter_base._database_adapter = None
 
         @Entity()
         @dataclass
@@ -398,12 +398,12 @@ class TestAlembicMetadataGeneration:
         assert table.c.id.type.__class__.__name__ == "GUID"
 
         clear_entity_registry()
-        repo_module._database_adapter = None
+        adapter_base._database_adapter = None
 
     def test_get_sqlalchemy_metadata_with_multiple_entities(self):
         """Test that get_sqlalchemy_metadata() populates all entities."""
         clear_entity_registry()
-        repo_module._database_adapter = None
+        adapter_base._database_adapter = None
 
         @Entity()
         @dataclass
@@ -428,12 +428,12 @@ class TestAlembicMetadataGeneration:
         assert "comments" in metadata.tables
 
         clear_entity_registry()
-        repo_module._database_adapter = None
+        adapter_base._database_adapter = None
 
     def test_get_sqlalchemy_metadata_idempotent(self):
         """Test that calling get_sqlalchemy_metadata() multiple times is safe."""
         clear_entity_registry()
-        repo_module._database_adapter = None
+        adapter_base._database_adapter = None
 
         @Entity()
         @dataclass
@@ -447,7 +447,7 @@ class TestAlembicMetadataGeneration:
         assert len(metadata1.tables) == 1
 
         clear_entity_registry()
-        repo_module._database_adapter = None
+        adapter_base._database_adapter = None
 
 
 class TestAlembicURLValidation:

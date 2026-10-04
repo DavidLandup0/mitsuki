@@ -142,6 +142,23 @@ class ParameterKind(MitsukiEnum):
     REQUEST = "request"
 
 
+class Propagation(MitsukiEnum):
+    """How a transactional block relates to a transaction already in progress."""
+
+    REQUIRED = "required"
+    REQUIRES_NEW = "requires_new"
+    NESTED = "nested"
+
+
+class Isolation(MitsukiEnum):
+    """Transaction isolation levels, valued as SQLAlchemy names them."""
+
+    READ_UNCOMMITTED = "READ UNCOMMITTED"
+    READ_COMMITTED = "READ COMMITTED"
+    REPEATABLE_READ = "REPEATABLE READ"
+    SERIALIZABLE = "SERIALIZABLE"
+
+
 class Scope(MitsukiEnum):
     """Dependency injection scopes."""
 

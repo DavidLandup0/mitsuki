@@ -13,11 +13,13 @@ from mitsuki.core.enums import (
     DatabaseAdapter,
     DatabaseDialect,
     HttpMethod,
+    Isolation,
     LogLevel,
     MediaType,
     MetricType,
     MitsukiEnum,
     ParameterKind,
+    Propagation,
     ScheduleType,
     Scope,
     ServerType,
@@ -42,6 +44,8 @@ ALL_ENUMS = [
     ScheduleType,
     TaskStatus,
     UIType,
+    Propagation,
+    Isolation,
 ]
 
 MEMBERS = [member for enum_cls in ALL_ENUMS for member in enum_cls]

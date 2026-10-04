@@ -23,34 +23,22 @@ from mitsuki.core.enums import Scope
 from mitsuki.core.instrumentation import _MARKER as _INSTRUMENTED_MARKER
 from mitsuki.core.logging import get_logger
 from mitsuki.core.utils import uuid7
+
+# Defined beside the adapter interface; re-exported from here, the documented
+# import path.
+from mitsuki.data.adapters.base import get_database_adapter as get_database_adapter
+from mitsuki.data.adapters.base import set_database_adapter as set_database_adapter
 from mitsuki.data.entity import get_entity_metadata, is_entity
 from mitsuki.data.query import ComparisonOperator, Query, QueryOperation
 from mitsuki.data.query_parser import parse_query_method
+from mitsuki.data.transactions import MARKER as _TRANSACTIONAL_MARKER
+from mitsuki.data.transactions import Transactional
 from mitsuki.data.types import _IdMarker, _UUIDMarker
 from mitsuki.exceptions import (
-    DataException,
     EntityException,
     QueryException,
     UUIDGenerationException,
 )
-
-# Global adapter instance (will be set during application startup)
-_database_adapter = None
-
-
-def set_database_adapter(adapter):
-    """Set the global database adapter instance"""
-    global _database_adapter
-    _database_adapter = adapter
-
-
-def get_database_adapter():
-    """Get the global database adapter instance"""
-    if _database_adapter is None:
-        raise DataException(
-            "Database adapter not initialized. Did you start the application?"
-        )
-    return _database_adapter
 
 
 class CrudRepositoryProxy:
@@ -555,18 +543,23 @@ def _implement(declared: Any) -> Any:
     """
     Turn an attribute declared on a repository class into its implementation.
 
-    @Query declarations and stubs are implemented by the proxy. Implemented
-    methods and any other attributes are kept as declared, so an implemented
-    method runs with the repository as self and can call every other
-    repository method.
+    @Query declarations and stubs are implemented by the proxy, keeping any
+    @Transactional they were declared with. Implemented methods and any other
+    attributes are kept as declared, so an implemented method runs with the
+    repository as self and can call every other repository method.
     """
     if not isinstance(declared, FunctionType):
         return declared
     if declared.__dict__.get("__mitsuki_query__"):
-        return _custom_query_method(declared)
-    if _is_stub(declared):
-        return _query_dsl_method(declared)
-    return declared
+        implemented = _custom_query_method(declared)
+    elif _is_stub(declared):
+        implemented = _query_dsl_method(declared)
+    else:
+        return declared
+
+    if _TRANSACTIONAL_MARKER in declared.__dict__:
+        return Transactional(*declared.__dict__[_TRANSACTIONAL_MARKER])(implemented)
+    return implemented
 
 
 def _declared_attributes(repo_class: Type) -> Dict[str, Any]:
@@ -663,6 +656,11 @@ def CrudRepository(entity: Type):
                 _INSTRUMENTED_MARKER,
                 vars(repo_class)[_INSTRUMENTED_MARKER],
             )
+
+        # Likewise, class-level @Transactional written below @CrudRepository
+        # wrapped only the user's class, not the built-in methods.
+        if _TRANSACTIONAL_MARKER in vars(repo_class):
+            Transactional(*vars(repo_class)[_TRANSACTIONAL_MARKER])(GeneratedRepository)
 
         GeneratedRepository = RepositoryDecorator(
             name=repo_class.__name__, scope=Scope.SINGLETON

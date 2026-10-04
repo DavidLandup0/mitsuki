@@ -635,11 +635,12 @@ curl http://localhost:8000/api/users/stats
 1. **Use the DSL when sensible** - Auto-implemented queries are tested
 2. **Keep entities simple** - Just data, no business logic
 3. **Repository per entity** - One repository manages one entity type
-4. **Services orchestrate** - Complex operations belong in services, not repositories
+4. **Services orchestrate** - Complex operations belong in services, not repositories. Make multi-step writes atomic with [`@Transactional`](./20_transactions.md)
 5. **Name methods clearly** - DSL method names are self-documenting
 
 ## Next Steps
 
 - [Decorators](./02_decorators.md) - Complete decorator reference
 - [Controllers](./04_controllers.md) - Web layer integration
+- [Transactions](./20_transactions.md) - Atomic units of work across repository calls
 - [Overview](./01_overview.md) - Architecture and design

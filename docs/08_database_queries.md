@@ -408,6 +408,7 @@ async def search_users(self, username=None, email=None, active=None):
 - **Context Manager**: Use `async with self.get_connection() as conn:` for automatic cleanup, otherwise connections aren't released
 - **Auto-closed**: Connections are automatically closed when exiting the context
 - **Pooled**: Uses connection pooling for efficiency
+- **Transactions**: Inside a `@Transactional` method, `get_connection()` yields the transaction's connection. See [Transactions](./20_transactions.md#custom-queries-inside-a-transaction)
 
 ## Query Logging
 

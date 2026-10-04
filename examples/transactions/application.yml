@@ -1,0 +1,9 @@
+server:
+  port: 8000
+
+logging:
+  level: INFO
+
+database:
+  url: postgresql://mitsuki:mitsuki@localhost:5432/ledger
+  adapter: sqlalchemy

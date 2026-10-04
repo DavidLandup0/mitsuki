@@ -1,0 +1,10 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: transactions-demo-postgres
+    environment:
+      POSTGRES_USER: mitsuki
+      POSTGRES_PASSWORD: mitsuki
+      POSTGRES_DB: ledger
+    ports:
+      - "5432:5432"
