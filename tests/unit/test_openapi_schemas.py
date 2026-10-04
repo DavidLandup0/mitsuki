@@ -163,13 +163,16 @@ class TestUnions:
         }
 
     def test_optional_union_includes_null_member(self):
-        assert type_to_schema(Optional[Union[int, str]]) == {
-            "anyOf": [
-                {"type": "integer"},
-                {"type": "string"},
-                {"type": "null"},
-            ]
-        }
+        # Before Python 3.14, typing caches unions and treats Union[int, str]
+        # and Union[str, int] as equal, so member order depends on which was
+        # created first in the process. anyOf is unordered, so neither is wrong.
+        schema = type_to_schema(Optional[Union[int, str]])
+
+        assert sorted(schema["anyOf"], key=lambda member: member["type"]) == [
+            {"type": "integer"},
+            {"type": "null"},
+            {"type": "string"},
+        ]
 
 
 class TestEnums:
