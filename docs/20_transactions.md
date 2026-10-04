@@ -15,7 +15,8 @@
 
 ## Overview
 
-Without a transaction, every repository call commits on its own. In the method below, if the second `save()` fails, the first one has already been committed and money disappears:
+Without transactional support, every repository call commits on its own. 
+In the method below, if the second `save()` fails, the first one has already been committed and money disappears:
 
 ```python
 @Service()
@@ -34,7 +35,7 @@ class TransferService:
 
 `@Transactional` runs the whole method in one database transaction: every repository call inside it uses the same connection, and the changes are committed together when the method returns, or rolled back together when it raises.
 
-Mitsuki only decides where transactions begin and end. The transactions themselves - atomicity, locking, isolation and savepoints - are provided by your database, through SQLAlchemy.
+Mitsuki decides where transactions begin and end. The transactions themselves - atomicity, locking, isolation and savepoints - are provided by your database, through SQLAlchemy.
 
 ## Getting Started
 
@@ -58,11 +59,11 @@ class TransferService:
         await self.accounts.save(target)
 ```
 
-- A normal return commits.
+- A return commits.
 - Any exception rolls back and is re-raised. This includes `asyncio.CancelledError`, so a cancelled request never commits.
 - Repository methods need no changes: built-in methods, Query DSL methods, `@Query` methods and `get_connection()` all join the transaction in progress.
 
-The transaction follows the call chain, however deep. A repository called from a helper called from the transactional method still runs inside the transaction.
+The transaction follows the call chain. A repository called from a helper called from the transactional method still runs inside the transaction.
 
 ## Propagation
 
@@ -91,7 +92,7 @@ class InventoryService:
         ...
 ```
 
-When a joined method fails, the shared transaction is marked rollback-only. If the outer method catches that exception and returns normally, the transaction is still rolled back and `UnexpectedRollbackException` is raised, so the caller never believes the work was saved:
+When a joined method fails, the shared transaction is marked rollback-only. If the outer method catches that exception and returns normally, the transaction is still rolled back and `UnexpectedRollbackException` is raised still:
 
 ```python
 @Transactional()
@@ -108,7 +109,7 @@ To continue after a failed step, use `NESTED` for that step instead.
 
 ### REQUIRES_NEW
 
-Suspend the transaction in progress and run in a new, independent one on a separate connection. The new transaction commits or rolls back on its own, regardless of the outer one. This is typically used for audit logs that must persist even when the operation they record fails:
+Suspend the transaction in progress and run in a new, independent one on a separate connection. The new transaction commits or rolls back on its own, regardless of the outer one. This is useful for example for audit logs that must persist even when the operation they record fails:
 
 ```python
 @Service()
@@ -130,7 +131,7 @@ The suspended transaction keeps its own connection while the new one runs, so ea
 
 ### NESTED
 
-Run inside the transaction in progress, behind a savepoint. If the nested method fails, only its own work is rolled back and the outer transaction continues. If the outer transaction later rolls back, the nested work is rolled back with it. With no transaction in progress, `NESTED` begins one, like `REQUIRED`.
+Run inside the transaction in progress, behind a savepoint. If the nested method fails, only its own work is rolled back and the outer transaction continues. If the outer transaction later rolls back, the nested work is rolled back with it. With no transaction in progress, `NESTED` begins one, like `REQUIRED`:
 
 ```python
 @Service()
@@ -150,7 +151,9 @@ class ImportService:
 
 ## Rollback Rules
 
-Every exception rolls back by default. List exceptions that should commit the work done so far in `no_rollback_for`. Subclasses of the listed types match too. The exception is re-raised either way:
+Every exception rolls back by default. If you wish to specify exceptions that should commit the work done so far, you can do so in `no_rollback_for`. Subclasses of the listed types match too. 
+
+The exception is re-raised either way:
 
 ```python
 @Transactional(no_rollback_for=(PaymentDeclined,))
@@ -163,26 +166,85 @@ A joined method that fails with an exception from its own `no_rollback_for` does
 
 ## Isolation Levels
 
-Isolation decides how much of other transactions' work a transaction can see while it runs:
+While your transaction runs, other requests can run their own transactions on the same tables. 
+Isolation decides what your queries return for rows those other transactions are changing at the same time, and how transactions that run concurrently interact with each other's in-flight results:
 
 ```python
 from mitsuki import Isolation, Transactional
 
 @Transactional(isolation=Isolation.SERIALIZABLE)
-async def allocate_seat(self, flight_id: int, passenger: str):
+async def withdraw(self, account_id: int, amount: int):
     ...
 ```
 
-| Level | Behaviour | PostgreSQL | MySQL | SQLite |
-|---|---|---|---|---|
-| `READ_UNCOMMITTED` | May see other transactions' uncommitted changes ("dirty reads") | - | Yes | Yes |
-| `READ_COMMITTED` | Sees changes as soon as other transactions commit | Default | Yes | - |
-| `REPEATABLE_READ` | Rows already read do not change under you | Yes | Default | - |
-| `SERIALIZABLE` | Behaves as if transactions ran one at a time | Yes | Yes | Default |
+### What each level sees
+
+Take two requests running at once. Account 1 holds a balance of `100`. Request A sets it to `50`, while request B reads it twice in its own transaction:
+
+```
+time   Request A                          Request B
+ t1    begin                              begin
+ t2    save(balance=50)  (uncommitted)
+ t3                                       find_by_id(1) → ?
+ t4    commit
+ t5                                       find_by_id(1) → ?
+```
+
+What B reads depends on B's isolation level:
+
+| Level | Read at t3 | Read at t5 | What B sees |
+|---|---|---|---|
+| `READ_UNCOMMITTED` | `50` | `50` | A's uncommitted change ("dirty read"). Had A rolled back, B would have acted on a value that never got written. |
+| `READ_COMMITTED` | `100` | `50` | Each query sees whatever is committed when it runs, so the same query can return different values within one transaction ("non-repeatable read"). |
+| `REPEATABLE_READ` | `100` | `100` | A snapshot taken at B's first query. Changes committed after it stay invisible until B ends. |
+| `SERIALIZABLE` | `100` | `100` | As `REPEATABLE_READ`, and the database aborts one of the transactions when they could not have run one after the other. On MySQL, B's read at t3 waits for A to commit instead. |
+
+### When it matters: read, decide, write
+
+Isolation matters for code that reads a value, decides on it and writes the result, such as a withdrawal:
+
+```python
+@Transactional()
+async def withdraw(self, account_id: int, amount: int):
+    account = await self.accounts.find_by_id(account_id)
+    if account.balance < amount:
+        raise InsufficientFunds()
+    account.balance -= amount
+    await self.accounts.save(account)
+```
+
+Two withdrawals of `80` from a balance of `100`, running at the same time, can both read `100` before either writes:
+
+```
+A: find_by_id → 100, 100 >= 80, save(balance=20), commit
+B: find_by_id → 100, 100 >= 80, save(balance=20), commit    (B read before A committed)
+```
+
+Both withdrawals succeed and the balance ends at `20`. One withdrawal is lost. What each level does with this:
+
+| Level | PostgreSQL | MySQL |
+|---|---|---|
+| `READ_COMMITTED` | Both commit; one update is lost | Both commit; one update is lost |
+| `REPEATABLE_READ` | One is aborted with a serialization failure | Both commit; one update is lost |
+| `SERIALIZABLE` | One is aborted with a serialization failure | One is aborted with a deadlock error |
+
+An aborted transaction raises SQLAlchemy's `DBAPIError` (`OperationalError` on MySQL) and rolls back. Retry the whole method: the retry reads the new balance of `20` and raises `InsufficientFunds`.
+
+The same pattern covers checking that a username is free, that stock remains, or that a time slot is open. Code that reads without acting on the result, or writes without reading first, is fine at the database's default level.
+
+### Support by database
+
+| Level | PostgreSQL | MySQL | SQLite |
+|---|---|---|---|
+| `READ_UNCOMMITTED` | - | Yes | Accepted, no effect |
+| `READ_COMMITTED` | Default | Yes | - |
+| `REPEATABLE_READ` | Yes | Default | - |
+| `SERIALIZABLE` | Yes | Yes | Default |
 
 - Isolation applies only where a transaction begins. A method that joins a transaction in progress runs at that transaction's level.
-- `SERIALIZABLE` transactions can be aborted by the database when they conflict, and should be retried by the caller.
 - A level SQLAlchemy does not support for your database (`-` above) raises SQLAlchemy's `ArgumentError` when the transaction begins. PostgreSQL has no real `READ_UNCOMMITTED`: it runs it as `READ_COMMITTED`, so SQLAlchemy rejects it. Use `READ_COMMITTED` instead.
+- SQLite runs every transaction as `SERIALIZABLE`. It accepts `READ_UNCOMMITTED`, but the setting only applies between connections sharing a cache, which Mitsuki does not use, so transactions still never see each other's uncommitted changes.
+- SQLite allows one writer at a time. In the withdrawal example, one transaction fails with SQLAlchemy's `OperationalError` (`database is locked`) and rolls back, so no update is lost.
 
 ## Programmatic Transactions
 
@@ -242,7 +304,7 @@ class AccountRepository:
             await conn.execute(update(table).values(balance=table.c.balance - amount))
 ```
 
-Do not call `conn.commit()` or `conn.rollback()` on this connection: that ends the transaction that `@Transactional` manages. Outside a transaction, `get_connection()` behaves as before and returns a new connection that is closed on exit.
+Do not call `conn.commit()` or `conn.rollback()` on this connection: that ends the transaction that `@Transactional` manages. Outside a transaction, `get_connection()` returns a new connection that is closed on exit. Writes on it are discarded unless you commit them with `await conn.commit()` before the block ends.
 
 ## Limitations
 
