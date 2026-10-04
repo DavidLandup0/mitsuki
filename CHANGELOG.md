@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.0
+
+### Features
+- **Transactions.** `@Transactional` on component methods or classes, and the `transaction()` context manager, run repository calls in one database transaction. Supports `REQUIRED`, `REQUIRES_NEW` and `NESTED` propagation, `no_rollback_for` and isolation levels. See [Transactions](docs/20_transactions.md).
+
+### Changes
+- **SQLAlchemy begins SQLite transactions.** The sqlite3 driver began a transaction only before data-modifying statements; reads now run inside the transaction they belong to, and savepoints work.
+- **`get_database_adapter` and `set_database_adapter` are defined in `mitsuki.data.adapters.base`.** Importing them from `mitsuki.data` or `mitsuki.data.repository` still works.
+
 ## 0.2.2
 
 ### Changes

@@ -475,6 +475,7 @@ Browse the full documentation at [davidlandup0.github.io/mitsuki](https://davidl
 | [OpenAPI](docs/16_openapi.md) | Auto-generated API documentation with Swagger/ReDoc/Scalar |
 | [Database](docs/17_database.md) | Database connection, pooling and query logging |
 | [Database Migrations](docs/19_database_migrations.md) | Schema migrations with Alembic |
+| [Transactions](docs/20_transactions.md) | @Transactional, propagation, rollback rules and isolation |
 | [Dockerizing Mitsuki](docs/18_dockerizing_mitsuki.md) | Containerizing Mitsuki applications |
 
 ## Basic Example
