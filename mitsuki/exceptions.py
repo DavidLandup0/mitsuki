@@ -68,6 +68,18 @@ class UUIDGenerationException(DataException):
     pass
 
 
+class TransactionException(DataException):
+    """Transaction demarcation errors."""
+
+    pass
+
+
+class UnexpectedRollbackException(TransactionException):
+    """A transaction marked rollback-only by a failed inner block was rolled back on exit."""
+
+    pass
+
+
 class WebException(MitsukiException):
     """Web/HTTP request handling errors."""
 

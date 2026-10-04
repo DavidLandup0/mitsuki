@@ -5,7 +5,8 @@ Uses SQLAlchemy Core (not ORM) for flexibility and async support.
 
 import re
 import uuid as uuid_module
-from typing import Any, Dict, List, Optional
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 from sqlalchemy import (
     Boolean,
@@ -20,6 +21,7 @@ from sqlalchemy import (
     Time,
     and_,
     delete,
+    event,
     func,
     insert,
     or_,
@@ -29,7 +31,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import Column as SAColumn
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from sqlalchemy.pool import AsyncAdaptedQueuePool, NullPool, StaticPool
 from sqlalchemy.types import CHAR, TypeDecorator
 
@@ -37,6 +39,7 @@ from mitsuki.core.enums import DatabaseDialect, SQLOperation
 from mitsuki.data.adapters.base import DatabaseAdapter
 from mitsuki.data.entity import get_entity_metadata
 from mitsuki.data.query import ComparisonOperator, LogicalOperator, Query
+from mitsuki.data.transactions import current_connection
 from mitsuki.data.types import EntityMetadata, FieldMetadata
 from mitsuki.exceptions import (
     DatabaseNotConnectedException,
@@ -106,6 +109,23 @@ def convert_to_async_url(connection_string: str) -> str:
     return connection_string
 
 
+def _delimit_sqlite_transactions(engine: AsyncEngine) -> None:
+    """
+    Let SQLAlchemy, not the sqlite3 driver, begin SQLite transactions.
+
+    The driver begins a transaction only before data-modifying statements and
+    does not support SAVEPOINT, so reads in a transaction would run outside it.
+    """
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def disable_driver_transactions(dbapi_connection, connection_record):
+        dbapi_connection.isolation_level = None
+
+    @event.listens_for(engine.sync_engine, "begin")
+    def begin(connection):
+        connection.exec_driver_sql("BEGIN")
+
+
 class SQLAlchemyAdapter(DatabaseAdapter):
     """
     SQLAlchemy-based database adapter with async support.
@@ -158,6 +178,7 @@ class SQLAlchemyAdapter(DatabaseAdapter):
                 self.engine = create_async_engine(
                     connection_string, poolclass=NullPool, echo=echo
                 )
+            _delimit_sqlite_transactions(self.engine)
         elif enable_pooling:
             # Use connection pooling for PostgreSQL, MySQL, etc.
             self.engine = create_async_engine(
@@ -268,10 +289,46 @@ class SQLAlchemyAdapter(DatabaseAdapter):
         entity_meta = get_entity_metadata(entity_type)
         return self._get_or_create_table(entity_meta)
 
+    @property
+    def supports_concurrent_transactions(self) -> bool:
+        """An in-memory SQLite database shares one connection between all users."""
+        return not isinstance(self.engine.pool, StaticPool)
+
+    async def open_connection(self) -> AsyncConnection:
+        """Open a connection for a transaction."""
+        if not self.engine:
+            raise DatabaseNotConnectedException("Database not connected")
+
+        return await self.engine.connect()
+
+    @asynccontextmanager
+    async def _reading(self) -> AsyncIterator[AsyncConnection]:
+        """The transaction's connection, or a new one closed on exit."""
+        connection = current_connection()
+        if connection is not None:
+            yield connection
+            return
+
+        async with self.engine.connect() as connection:
+            yield connection
+
+    @asynccontextmanager
+    async def _writing(self) -> AsyncIterator[AsyncConnection]:
+        """The transaction's connection, or a new one committed on exit."""
+        connection = current_connection()
+        if connection is not None:
+            yield connection
+            return
+
+        async with self.engine.begin() as connection:
+            yield connection
+
     def get_connection(self):
         """
         Get a database connection as a context manager.
-        Connection is automatically closed when exiting the context.
+
+        Inside a transaction, this is the transaction's connection, left open
+        on exit. Otherwise it is a new connection, closed on exit.
 
         Usage:
             async with adapter.get_connection() as conn:
@@ -280,7 +337,7 @@ class SQLAlchemyAdapter(DatabaseAdapter):
         Returns:
             AsyncConnection context manager
         """
-        return self.engine.connect()
+        return self._reading()
 
     async def create_table_if_not_exists(self, entity_meta: EntityMetadata) -> None:
         """Create table for entity if it doesn't exist"""
@@ -373,7 +430,7 @@ class SQLAlchemyAdapter(DatabaseAdapter):
             stmt = stmt.offset(query.offset)
 
         # Execute
-        async with self.engine.connect() as conn:
+        async with self._reading() as conn:
             result = await conn.execute(stmt)
             rows = result.fetchall()
             return [dict(row._mapping) for row in rows]
@@ -389,15 +446,12 @@ class SQLAlchemyAdapter(DatabaseAdapter):
 
         stmt = insert(table_obj).values(**data)
 
-        async with self.engine.connect() as conn:
-            async with conn.begin():
-                result = await conn.execute(stmt)
-                # Return the inserted primary key
-                return (
-                    result.inserted_primary_key[0]
-                    if result.inserted_primary_key
-                    else None
-                )
+        async with self._writing() as conn:
+            result = await conn.execute(stmt)
+            # Return the inserted primary key
+            return (
+                result.inserted_primary_key[0] if result.inserted_primary_key else None
+            )
 
     async def execute_update(
         self,
@@ -417,9 +471,8 @@ class SQLAlchemyAdapter(DatabaseAdapter):
         pk_column = table_obj.c[primary_key_field]
         stmt = update(table_obj).where(pk_column == primary_key_value).values(**data)
 
-        async with self.engine.connect() as conn:
-            async with conn.begin():
-                await conn.execute(stmt)
+        async with self._writing() as conn:
+            await conn.execute(stmt)
 
     async def execute_delete(
         self, table: str, primary_key_field: str, primary_key_value: Any
@@ -435,9 +488,8 @@ class SQLAlchemyAdapter(DatabaseAdapter):
         pk_column = table_obj.c[primary_key_field]
         stmt = delete(table_obj).where(pk_column == primary_key_value)
 
-        async with self.engine.connect() as conn:
-            async with conn.begin():
-                await conn.execute(stmt)
+        async with self._writing() as conn:
+            await conn.execute(stmt)
 
     async def execute_delete_query(self, query: Query) -> int:
         """Execute DELETE with conditions"""
@@ -453,10 +505,9 @@ class SQLAlchemyAdapter(DatabaseAdapter):
         if where_clause is not None:
             stmt = stmt.where(where_clause)
 
-        async with self.engine.connect() as conn:
-            async with conn.begin():
-                result = await conn.execute(stmt)
-                return result.rowcount
+        async with self._writing() as conn:
+            result = await conn.execute(stmt)
+            return result.rowcount
 
     async def execute_count(self, query: Query) -> int:
         """Execute COUNT query"""
@@ -472,7 +523,7 @@ class SQLAlchemyAdapter(DatabaseAdapter):
         if where_clause is not None:
             stmt = stmt.where(where_clause)
 
-        async with self.engine.connect() as conn:
+        async with self._reading() as conn:
             result = await conn.execute(stmt)
             return result.scalar()
 
@@ -493,7 +544,7 @@ class SQLAlchemyAdapter(DatabaseAdapter):
 
         stmt = stmt.limit(1)
 
-        async with self.engine.connect() as conn:
+        async with self._reading() as conn:
             result = await conn.execute(stmt)
             return result.first() is not None
 
@@ -611,7 +662,7 @@ class SQLAlchemyAdapter(DatabaseAdapter):
 
         stmt = text(query_string)
 
-        async with self.engine.connect() as conn:
+        async with self._reading() as conn:
             result = await conn.execute(stmt, params)
             rows = result.fetchall()
             return [dict(row._mapping) for row in rows]
@@ -644,7 +695,6 @@ class SQLAlchemyAdapter(DatabaseAdapter):
 
         stmt = text(query_string)
 
-        async with self.engine.connect() as conn:
-            async with conn.begin():
-                result = await conn.execute(stmt, params)
-                return result.rowcount
+        async with self._writing() as conn:
+            result = await conn.execute(stmt, params)
+            return result.rowcount

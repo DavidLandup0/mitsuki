@@ -16,10 +16,12 @@ from mitsuki.core.enums import (
     DatabaseAdapter,
     DatabaseDialect,
     HttpMethod,
+    Isolation,
     LogLevel,
     MediaType,
     MetricType,
     ParameterKind,
+    Propagation,
     ScheduleType,
     Scope,
     ServerType,
@@ -46,10 +48,12 @@ from mitsuki.data import (
     Id,
     Modifying,
     Query,
+    Transactional,
     UUIDv1,
     UUIDv4,
     UUIDv5,
     UUIDv7,
+    transaction,
 )
 
 # Web
@@ -109,6 +113,8 @@ __all__ = [
     "ASGIScopeType",
     "ParameterKind",
     "Scope",
+    "Propagation",
+    "Isolation",
     "StereotypeType",
     "HttpMethod",
     "MediaType",
@@ -161,6 +167,8 @@ __all__ = [
     "UUIDv7",
     "Query",
     "Modifying",
+    "Transactional",
+    "transaction",
     # Config
     "Value",
     "Profile",

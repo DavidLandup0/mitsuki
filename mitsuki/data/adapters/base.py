@@ -7,6 +7,25 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
 from mitsuki.data.query import Query
+from mitsuki.exceptions import DataException
+
+# Global adapter instance (will be set during application startup)
+_database_adapter = None
+
+
+def set_database_adapter(adapter):
+    """Set the global database adapter instance"""
+    global _database_adapter
+    _database_adapter = adapter
+
+
+def get_database_adapter():
+    """Get the global database adapter instance"""
+    if _database_adapter is None:
+        raise DataException(
+            "Database adapter not initialized. Did you start the application?"
+        )
+    return _database_adapter
 
 
 class DatabaseAdapter(ABC):
@@ -28,6 +47,20 @@ class DatabaseAdapter(ABC):
     @abstractmethod
     async def disconnect(self) -> None:
         """Close database connection and cleanup resources."""
+        pass
+
+    @abstractmethod
+    async def open_connection(self) -> Any:
+        """
+        Open a connection for a transaction. The caller begins the transaction
+        and closes the connection.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def supports_concurrent_transactions(self) -> bool:
+        """Whether a second transaction can begin while one is in progress."""
         pass
 
     @abstractmethod
